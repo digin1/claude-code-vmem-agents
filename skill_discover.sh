@@ -16,7 +16,7 @@
 #   - Total cap: 10 project + 10 global skills
 #   - Validates frontmatter structure before writing
 
-INPUT=$(cat 2>/dev/null)
+INPUT=$(timeout 2 cat 2>/dev/null || true)
 LIB="$(dirname "$0")/lib"
 COOLDOWN_DIR="$HOME/.claude/.cortex_skill_cooldown"
 mkdir -p "$COOLDOWN_DIR"
@@ -25,7 +25,7 @@ mkdir -p "$COOLDOWN_DIR"
 CWD=$(echo "$INPUT" | /usr/bin/python3 -c "
 import sys, json
 try: print(json.loads(sys.stdin.read()).get('cwd', ''))
-except: print('')
+except Exception: print('')
 " 2>/dev/null)
 
 if [ -z "$CWD" ]; then
@@ -50,7 +50,7 @@ try:
     skip = {'typescript', 'make', 'docker', 'vite'}
     fws = [f for f in d.get('frameworks', []) if f['id'] not in skip]
     print(len(fws))
-except: print('0')
+except Exception: print('0')
 " 2>/dev/null)
 
 if [ "$FRAMEWORK_COUNT" = "0" ]; then
@@ -124,7 +124,7 @@ PYEOF
 UNCOVERED_COUNT=$(echo "$UNCOVERED" | /usr/bin/python3 -c "
 import sys, json
 try: print(len(json.loads(sys.stdin.read())))
-except: print('0')
+except Exception: print('0')
 " 2>/dev/null)
 
 if [ "$UNCOVERED_COUNT" = "0" ] || [ -z "$UNCOVERED" ] || [ "$UNCOVERED" = "[]" ]; then
@@ -163,20 +163,31 @@ $PROJECT_SKILLS"
 fi
 
 # ================================================================
-# Phase 5: ONE call to claude -p (sonnet) — generate skill definitions
+# Phase 5: Build prompt safely and call claude -p (sonnet)
 # ================================================================
-SKILL_RESULT=$(cat <<PROMPT_EOF | claude -p --model sonnet --mcp-config '{}' --strict-mcp-config 2>/dev/null
-You are a skill architect for Claude Code. Generate reusable slash-command skill files (.md) for the detected frameworks.
+PROMPT_FILE=$(mktemp /tmp/cortex_skill_prompt.XXXXXX)
+trap "rm -f '$PROMPT_FILE'" EXIT
+
+# Build prompt via Python to sanitize all user-controlled values
+/usr/bin/python3 -W ignore - "$FRAMEWORK_DETAILS" "$PROJECT_NAME" "$CWD" "$EXISTING_SKILLS" "$PROMPT_FILE" 2>/dev/null <<'PYEOF'
+import sys
+fw_details = sys.argv[1] if len(sys.argv) > 1 else ""
+proj_name = sys.argv[2] if len(sys.argv) > 2 else "unknown"
+proj_dir = sys.argv[3] if len(sys.argv) > 3 else ""
+existing = sys.argv[4] if len(sys.argv) > 4 else "(none)"
+out_file = sys.argv[5] if len(sys.argv) > 5 else "/dev/null"
+
+prompt = f"""You are a skill architect for Claude Code. Generate reusable slash-command skill files (.md) for the detected frameworks.
 
 === DETECTED FRAMEWORKS (need skills) ===
-$FRAMEWORK_DETAILS
+{fw_details}
 
 === PROJECT ===
-Name: $PROJECT_NAME
-Directory: $CWD
+Name: {proj_name}
+Directory: {proj_dir}
 
 === EXISTING SKILL COMMANDS (don't duplicate) ===
-${EXISTING_SKILLS:-(none)}
+{existing or '(none)'}
 
 ## RULES
 
@@ -194,14 +205,14 @@ ${EXISTING_SKILLS:-(none)}
 
 ## Skill .md Format
 
-\`\`\`
+```
 ---
 description: One-line description shown in command palette
 ---
 
 Detailed instructions for Claude when user invokes this command.
-Use \$ARGUMENTS to capture user input after the command name.
-\`\`\`
+Use $ARGUMENTS to capture user input after the command name.
+```
 
 ## Quality — IMPORTANT
 
@@ -222,13 +233,18 @@ Example of a GOOD skill body (FastAPI endpoint):
 5. Include OpenAPI metadata: summary, description, response_model
 6. Add the route to the appropriate router in app/api/
 7. Write a test using TestClient that covers success + error cases
-8. Use \$ARGUMENTS as the endpoint description/purpose"
+8. Use $ARGUMENTS as the endpoint description/purpose"
 
 ## Output
 
-[{"scope": "project", "filename": "kebab-case-name.md", "content": "---\ndescription: What it does\n---\n\nDetailed instructions..."}]
-PROMPT_EOF
-)
+[{{"scope": "project", "filename": "kebab-case-name.md", "content": "---\\ndescription: What it does\\n---\\n\\nDetailed instructions..."}}]
+"""
+
+with open(out_file, 'w') as f:
+    f.write(prompt)
+PYEOF
+
+SKILL_RESULT=$(claude -p --model sonnet --mcp-config '{}' --strict-mcp-config < "$PROMPT_FILE" 2>/dev/null)
 
 if [ -z "$SKILL_RESULT" ]; then
     echo "[skill-discover] No skill proposals generated"
@@ -239,7 +255,27 @@ fi
 # ================================================================
 # Phase 6: Create skill files via skill_create.py
 # ================================================================
-CREATED=$(/usr/bin/python3 "$LIB/skill_create.py" "$SKILL_RESULT" "$CWD" 2>/dev/null)
+# Write SKILL_RESULT to temp file to avoid ARG_MAX limits on argv
+SKILL_JSON_FILE=$(mktemp /tmp/cortex_skill_json.XXXXXX)
+printf '%s' "$SKILL_RESULT" > "$SKILL_JSON_FILE"
+CREATED=$(/usr/bin/python3 -W ignore - "$SKILL_JSON_FILE" "$CWD" 2>/dev/null <<'PYEOF'
+import sys, os
+json_file = sys.argv[1] if len(sys.argv) > 1 else ""
+cwd = sys.argv[2] if len(sys.argv) > 2 else os.getcwd()
+try:
+    with open(json_file) as f:
+        raw = f.read()
+except Exception:
+    print("0")
+    sys.exit(0)
+# Import and run skill_create
+lib_dir = os.path.expanduser("~/.claude/skills/cortex/lib")
+sys.path.insert(0, lib_dir)
+from skill_create import create_skills
+create_skills(raw, cwd)
+PYEOF
+)
+rm -f "$SKILL_JSON_FILE"
 
 if [ "$CREATED" -gt 0 ] 2>/dev/null; then
     echo "[skill-discover] Created $CREATED new skill(s) for $PROJECT_NAME"

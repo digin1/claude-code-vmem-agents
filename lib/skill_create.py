@@ -24,11 +24,16 @@ import re
 
 
 def strip_code_fences(raw):
-    """Remove markdown code fences from raw text."""
+    """Remove outer markdown code fences from raw text (first and last only)."""
     raw = raw.strip()
     if raw.startswith("```"):
         lines = raw.split("\n")
-        raw = "\n".join(l for l in lines if not l.startswith("```"))
+        # Only strip the first fence line and last fence line
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        raw = "\n".join(lines)
     return raw
 
 
@@ -49,10 +54,12 @@ def parse_json_array(raw):
 
 def validate_skill_content(content):
     """Check that skill content has valid frontmatter with description."""
-    if "---" not in content:
+    parts = content.split("---")
+    # Need at least 3 parts: before, frontmatter, body (--- ... --- ...)
+    if len(parts) < 3:
         return False
-    # Must have at least description in frontmatter
-    if "description:" not in content.split("---")[1] if content.count("---") >= 2 else "":
+    frontmatter = parts[1]
+    if "description:" not in frontmatter:
         return False
     return True
 

@@ -325,15 +325,17 @@ def detect_ruby_frameworks(project_dir):
     except Exception:
         return frameworks
 
+    # Match both single and double quoted gem names: gem 'rails' or gem "rails"
     ruby_map = {
-        "'rails'": ("rails", "Ruby on Rails"),
-        "'sinatra'": ("sinatra", "Sinatra"),
-        "'rspec'": ("rspec", "RSpec"),
-        "'sidekiq'": ("sidekiq", "Sidekiq"),
+        "rails": ("rails", "Ruby on Rails"),
+        "sinatra": ("sinatra", "Sinatra"),
+        "rspec": ("rspec", "RSpec"),
+        "sidekiq": ("sidekiq", "Sidekiq"),
     }
 
-    for gem, (fid, fname) in ruby_map.items():
-        if gem in content:
+    for gem_name, (fid, fname) in ruby_map.items():
+        # Match gem 'name' or gem "name" patterns
+        if re.search(rf"""gem\s+['\"]{gem_name}['\"]""", content):
             frameworks.append({"id": fid, "name": fname, "ecosystem": "ruby"})
 
     return frameworks
