@@ -67,6 +67,8 @@ import os, glob, json, warnings
 warnings.filterwarnings('ignore')
 os.environ['ONNXRUNTIME_DISABLE_TELEMETRY'] = '1'
 os.environ['ORT_LOG_LEVEL'] = 'ERROR'
+os.environ['OMP_NUM_THREADS'] = '2'
+os.environ['ONNXRUNTIME_SESSION_THREAD_POOL_SIZE'] = '2'
 
 user_dir = os.path.expanduser('~/.claude/agents')
 proj_dir = '.claude/agents'

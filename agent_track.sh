@@ -10,6 +10,8 @@ import sys, json, time, os, warnings
 warnings.filterwarnings('ignore')
 os.environ['ONNXRUNTIME_DISABLE_TELEMETRY'] = '1'
 os.environ['ORT_LOG_LEVEL'] = 'ERROR'
+os.environ['OMP_NUM_THREADS'] = '2'
+os.environ['ONNXRUNTIME_SESSION_THREAD_POOL_SIZE'] = '2'
 
 raw = os.environ.get('VMEM_HOOK_INPUT', '').strip()
 if not raw:

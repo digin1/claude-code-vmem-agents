@@ -15,6 +15,10 @@ import sys, json, os, time, warnings
 warnings.filterwarnings("ignore")
 os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
 os.environ["ORT_LOG_LEVEL"] = "ERROR"
+# Throttle onnxruntime threads — prevents each hook from saturating all cores
+os.environ["OMP_NUM_THREADS"] = "2"
+os.environ["ONNXRUNTIME_SESSION_THREAD_POOL_SIZE"] = "2"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Suppress onnxruntime noise
 _fd = os.dup(2)

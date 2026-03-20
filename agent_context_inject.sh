@@ -10,6 +10,8 @@ import sys, json, os, time, warnings
 warnings.filterwarnings("ignore")
 os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
 os.environ["ORT_LOG_LEVEL"] = "ERROR"
+os.environ["OMP_NUM_THREADS"] = "2"
+os.environ["ONNXRUNTIME_SESSION_THREAD_POOL_SIZE"] = "2"
 
 _fd = os.dup(2)
 _dn = os.open(os.devnull, os.O_WRONLY)

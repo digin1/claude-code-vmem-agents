@@ -13,6 +13,8 @@ from collections import Counter
 warnings.filterwarnings("ignore")
 os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
 os.environ["ORT_LOG_LEVEL"] = "ERROR"
+os.environ["OMP_NUM_THREADS"] = "2"
+os.environ["ONNXRUNTIME_SESSION_THREAD_POOL_SIZE"] = "2"
 
 LEDGER = os.path.expanduser("~/.claude/agent-usage.jsonl")
 DB_PATH = os.path.expanduser("~/.claude/cortex-db")

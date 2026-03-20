@@ -20,6 +20,10 @@ from pathlib import Path
 
 os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
 os.environ["ORT_LOG_LEVEL"] = "ERROR"
+# Throttle threads — multiple MCP server instances run concurrently
+os.environ["OMP_NUM_THREADS"] = "2"
+os.environ["ONNXRUNTIME_SESSION_THREAD_POOL_SIZE"] = "2"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 warnings.filterwarnings("ignore")
 
 _stderr_fd = os.dup(2)
