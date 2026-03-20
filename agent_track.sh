@@ -5,7 +5,7 @@
 INPUT=$(cat 2>/dev/null)
 
 # Pass input via env var since heredoc takes stdin
-VMEM_HOOK_INPUT="$INPUT" python3 -W ignore - 2>/dev/null <<'PYEOF'
+VMEM_HOOK_INPUT="$INPUT" /usr/bin/python3 -W ignore - 2>/dev/null <<'PYEOF'
 import sys, json, time, os, warnings
 warnings.filterwarnings('ignore')
 os.environ['ONNXRUNTIME_DISABLE_TELEMETRY'] = '1'

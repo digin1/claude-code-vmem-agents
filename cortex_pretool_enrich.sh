@@ -5,7 +5,7 @@
 
 INPUT=$(cat)
 
-python3 -W ignore - "$INPUT" 2>/dev/null <<'PYEOF'
+/usr/bin/python3 -W ignore - "$INPUT" 2>/dev/null <<'PYEOF'
 import sys, json, os, time
 
 OPS_LOG = os.path.expanduser("~/.claude/.cortex_ops_log.jsonl")

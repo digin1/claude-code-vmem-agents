@@ -7,7 +7,7 @@ OPS_LOG="$HOME/.claude/.cortex_ops_log.jsonl"
 SESSIONS_LOG="$HOME/.claude/.cortex_sessions.jsonl"
 
 # ── Line 1: Memory stats ──
-MEMORY_LINE=$(python3 -W ignore - "$DB_PATH" 2>/dev/null <<'PYEOF'
+MEMORY_LINE=$(/usr/bin/python3 -W ignore - "$DB_PATH" 2>/dev/null <<'PYEOF'
 import os, sys
 os.environ["ORT_LOG_LEVEL"] = "ERROR"
 _fd = os.dup(2)
@@ -62,7 +62,7 @@ PYEOF
 )
 
 # ── Line 2: Agent fleet ──
-FLEET_LINE=$(python3 -W ignore -c "
+FLEET_LINE=$(/usr/bin/python3 -W ignore -c "
 import os, glob, json, warnings
 warnings.filterwarnings('ignore')
 os.environ['ONNXRUNTIME_DISABLE_TELEMETRY'] = '1'

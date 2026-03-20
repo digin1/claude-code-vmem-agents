@@ -11,10 +11,10 @@ SESSIONS_LOG="$HOME/.claude/.cortex_sessions.jsonl"
 ACTIVITY_FILE="$HOME/.claude/.cortex_activity"
 
 # Parse hook input — separate calls to handle paths with spaces
-SESSION_ID=$(echo "$INPUT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('session_id',''),end='')" 2>/dev/null)
-TRANSCRIPT=$(echo "$INPUT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('transcript_path',''),end='')" 2>/dev/null)
-CWD=$(echo "$INPUT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('cwd',''),end='')" 2>/dev/null)
-REASON=$(echo "$INPUT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('reason',''),end='')" 2>/dev/null)
+SESSION_ID=$(echo "$INPUT" | /usr/bin/python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('session_id',''),end='')" 2>/dev/null)
+TRANSCRIPT=$(echo "$INPUT" | /usr/bin/python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('transcript_path',''),end='')" 2>/dev/null)
+CWD=$(echo "$INPUT" | /usr/bin/python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('cwd',''),end='')" 2>/dev/null)
+REASON=$(echo "$INPUT" | /usr/bin/python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('reason',''),end='')" 2>/dev/null)
 
 # ================================================================
 # Phase 1: Quick cleanup (sync, < 500ms)
@@ -44,7 +44,7 @@ if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
 
             if [ -n "$SUMMARY" ] && [ "$SUMMARY" != "SKIP" ]; then
                 # Use python to safely JSON-encode the summary to avoid quote injection
-                SAFE_JSON=$(python3 -c "
+                SAFE_JSON=$(/usr/bin/python3 -c "
 import json, sys
 s = sys.stdin.read().strip()
 print(json.dumps([{'type':'project','id':'session_$(date +%Y%m%d_%H%M)','content':s,'tags':'session-summary,auto'}]))

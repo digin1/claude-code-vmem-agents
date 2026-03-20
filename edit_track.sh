@@ -4,7 +4,7 @@
 
 INPUT=$(cat 2>/dev/null)
 
-python3 -W ignore - "$INPUT" 2>/dev/null <<'PYEOF'
+/usr/bin/python3 -W ignore - "$INPUT" 2>/dev/null <<'PYEOF'
 import sys, json, os, time
 
 EDIT_LOG = os.path.expanduser("~/.claude/.cortex_edit_log")

@@ -21,7 +21,7 @@ COOLDOWN_DIR="$HOME/.claude/.cortex_bootstrap_cooldown"
 mkdir -p "$COOLDOWN_DIR"
 
 # Extract cwd from hook input
-CWD=$(echo "$INPUT" | python3 -c "
+CWD=$(echo "$INPUT" | /usr/bin/python3 -c "
 import sys, json
 try: print(json.loads(sys.stdin.read()).get('cwd', ''))
 except: print('')
@@ -35,7 +35,7 @@ fi
 # Phase 1: Quick check — does this project need agents?
 # Returns: project_needs,global_needs or empty
 # ================================================================
-NEEDS=$(python3 -W ignore - "$CWD" 2>/dev/null <<'PYEOF'
+NEEDS=$(/usr/bin/python3 -W ignore - "$CWD" 2>/dev/null <<'PYEOF'
 import sys, os, glob, warnings
 warnings.filterwarnings("ignore")
 os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
@@ -146,7 +146,7 @@ echo "[cortex bootstrap] Projects needing agents: $NEEDS"
 MEMORIES=$("$LIB/collect_memories_full.py" "$NEEDS" 2>/dev/null)
 EXISTING_AGENTS=$("$LIB/collect_agents.py" 2>/dev/null)
 
-EXISTING_NAMES=$(echo "$EXISTING_AGENTS" | python3 -c "
+EXISTING_NAMES=$(echo "$EXISTING_AGENTS" | /usr/bin/python3 -c "
 import sys, json
 try:
     agents = json.loads(sys.stdin.read())

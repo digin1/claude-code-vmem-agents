@@ -26,10 +26,10 @@ fi
 echo "[cortex hygiene] Starting memory hygiene..."
 
 # Run hygiene
-RESULT=$(python3 -W ignore "$LIB/memory_hygiene.py" 2>&1)
+RESULT=$(/usr/bin/python3 -W ignore "$LIB/memory_hygiene.py" 2>&1)
 
 # Parse result for activity update
-MERGED=$(echo "$RESULT" | python3 -c "
+MERGED=$(echo "$RESULT" | /usr/bin/python3 -c "
 import sys, json
 try:
     d = json.loads(sys.stdin.read().split('\n')[-1])

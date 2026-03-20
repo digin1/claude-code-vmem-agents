@@ -7,7 +7,7 @@ INPUT=$(cat 2>/dev/null)
 LIB="$(dirname "$0")/lib"
 
 # Extract compact_summary and cwd from hook input — separate calls for space safety
-SUMMARY=$(echo "$INPUT" | python3 -c "
+SUMMARY=$(echo "$INPUT" | /usr/bin/python3 -c "
 import sys, json
 try:
     d = json.loads(sys.stdin.read())
@@ -15,7 +15,7 @@ try:
 except: pass
 " 2>/dev/null)
 
-CWD=$(echo "$INPUT" | python3 -c "
+CWD=$(echo "$INPUT" | /usr/bin/python3 -c "
 import sys, json
 try:
     d = json.loads(sys.stdin.read())

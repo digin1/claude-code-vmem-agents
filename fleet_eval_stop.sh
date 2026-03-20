@@ -5,7 +5,7 @@
 
 INPUT=$(cat 2>/dev/null)
 
-VMEM_HOOK_INPUT="$INPUT" python3 -W ignore - 2>/dev/null <<'PYEOF'
+VMEM_HOOK_INPUT="$INPUT" /usr/bin/python3 -W ignore - 2>/dev/null <<'PYEOF'
 import sys, json, os, time, warnings
 from datetime import datetime, timedelta
 from collections import Counter

@@ -10,7 +10,7 @@
 
 INPUT=$(cat)
 
-python3 -W ignore - "$INPUT" 2>/dev/null <<'PYEOF'
+/usr/bin/python3 -W ignore - "$INPUT" 2>/dev/null <<'PYEOF'
 import sys, json, os, time, warnings
 warnings.filterwarnings("ignore")
 os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"

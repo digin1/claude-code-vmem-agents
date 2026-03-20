@@ -8,7 +8,7 @@ LIB="$(dirname "$0")/lib"
 
 # Extract transcript_path and cwd from hook JSON input (no eval -- safe from injection)
 # Use null delimiter to handle paths with spaces
-TRANSCRIPT=$(echo "$INPUT" | python3 -c "
+TRANSCRIPT=$(echo "$INPUT" | /usr/bin/python3 -c "
 import sys, json
 try:
     d = json.loads(sys.stdin.read())
@@ -16,7 +16,7 @@ try:
 except: pass
 " 2>/dev/null)
 
-CWD=$(echo "$INPUT" | python3 -c "
+CWD=$(echo "$INPUT" | /usr/bin/python3 -c "
 import sys, json
 try:
     d = json.loads(sys.stdin.read())
@@ -59,7 +59,7 @@ EXISTING_AGENTS_JSON=$("$LIB/collect_agents.py" 2>/dev/null)
 MEMORIES=$("$LIB/collect_memories.py" 2>/dev/null)
 USAGE_STATS=$("$LIB/collect_usage.py" 2>/dev/null)
 
-EXISTING_NAMES=$(echo "$EXISTING_AGENTS_JSON" | python3 -c "
+EXISTING_NAMES=$(echo "$EXISTING_AGENTS_JSON" | /usr/bin/python3 -c "
 import sys, json
 try:
     agents = json.loads(sys.stdin.read())

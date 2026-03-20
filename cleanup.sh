@@ -4,7 +4,7 @@
 # 2. compact_save.sh-sourced: older than 60 days with near-duplicates (cosine < 0.1)
 # Called by SessionStart hook
 
-python3 -W ignore - 2>/dev/null <<'PYEOF'
+/usr/bin/python3 -W ignore - 2>/dev/null <<'PYEOF'
 import os, time, warnings, sys
 from datetime import datetime, timedelta
 from collections import defaultdict
