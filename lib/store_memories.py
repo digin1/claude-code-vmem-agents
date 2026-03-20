@@ -16,7 +16,7 @@ warnings.filterwarnings("ignore")
 os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
 
 DB_PATH = os.path.expanduser("~/.claude/vector-memory-db")
-ACTIVITY_FILE = os.path.expanduser("~/.claude/.vmem_activity")
+ACTIVITY_FILE = os.path.expanduser("~/.claude/.cortex_activity")
 
 
 def strip_code_fences(raw):
@@ -92,9 +92,9 @@ def store_memories(raw):
         if stored > 0:
             with open(ACTIVITY_FILE, "w") as af:
                 af.write(f"learned {stored} (AI)")
-            print(f"[vmem compact] Stored {stored} AI-extracted memory(ies)")
+            print(f"[cortex compact] Stored {stored} AI-extracted memory(ies)")
     except Exception as e:
-        print(f"[vmem compact] Memory error: {e}")
+        print(f"[cortex compact] Memory error: {e}")
 
 
 def main():

@@ -1,6 +1,6 @@
 ---
-name: vmem
-description: Vector memory database — store, search, and manage memories with semantic search across all projects
+name: cortex
+description: Cortex — self-evolving memory and agent fleet — store, search, and manage memories with semantic search across all projects
 argument-hint: <store|search|list|delete|update|stats|agents> [args...]
 allowed-tools: "mcp__vector-memory__memory_store, mcp__vector-memory__memory_search, mcp__vector-memory__memory_list, mcp__vector-memory__memory_delete, mcp__vector-memory__memory_update, mcp__vector-memory__memory_stats, Bash, Read, Glob"
 ---
@@ -24,14 +24,14 @@ You have access to a persistent vector memory database (ChromaDB) via MCP tools.
 
 Parse `$ARGUMENTS` to determine the command:
 
-- `/vmem store <content>` → call `memory_store`
-- `/vmem search <query>` → call `memory_search`
-- `/vmem list` → call `memory_list`
-- `/vmem delete <id>` → call `memory_delete`
-- `/vmem update <id> <content>` → call `memory_update`
-- `/vmem stats` → call `memory_stats`
-- `/vmem agents` → run agent fleet dashboard (see below)
-- `/vmem` with no args → call `memory_stats`
+- `/cortex store <content>` → call `memory_store`
+- `/cortex search <query>` → call `memory_search`
+- `/cortex list` → call `memory_list`
+- `/cortex delete <id>` → call `memory_delete`
+- `/cortex update <id> <content>` → call `memory_update`
+- `/cortex stats` → call `memory_stats`
+- `/cortex agents` → run agent fleet dashboard (see below)
+- `/cortex` with no args → call `memory_stats`
 
 When storing, always:
 1. Choose an appropriate `memory_type` based on content (user, feedback, project, reference, general)
@@ -40,18 +40,18 @@ When storing, always:
 
 When searching, show results in a readable format with ID, content, type, and similarity score.
 
-## Agent Fleet Dashboard (`/vmem agents`)
+## Agent Fleet Dashboard (`/cortex agents`)
 
-When the user runs `/vmem agents`, provide a comprehensive fleet health report by running:
+When the user runs `/cortex agents`, provide a comprehensive fleet health report by running:
 
 ```bash
-python3 -W ignore ~/.claude/skills/vmem/agent_dashboard.py 2>/dev/null
+python3 -W ignore ~/.claude/skills/cortex/agent_dashboard.py 2>/dev/null
 ```
 
 Then format the JSON output into a readable table showing:
 - Agent name, scope (user/project), model
 - Usage count and last used date (from `~/.claude/agent-usage.jsonl`)
-- Latest eval score and notes (from vmem `agent_eval` type memories)
+- Latest eval score and notes (from cortex `agent_eval` type memories)
 - Health indicator based on score + usage
 
-If the user says `/vmem agents <name>`, show detailed info for that specific agent (read its .md file, full eval history, usage timeline).
+If the user says `/cortex agents <name>`, show detailed info for that specific agent (read its .md file, full eval history, usage timeline).

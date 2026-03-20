@@ -1,14 +1,14 @@
 #!/bin/bash
-# PreToolUse hook: enrich vmem operations with project context + audit trail
+# PreToolUse hook: enrich cortex operations with project context + audit trail
 # For memory_store/update: auto-detect project from cwd, inject via updatedInput
-# For ALL vmem tools: log operation to audit trail
+# For ALL cortex tools: log operation to audit trail
 
 INPUT=$(cat)
 
 python3 -W ignore - "$INPUT" 2>/dev/null <<'PYEOF'
 import sys, json, os, time
 
-OPS_LOG = os.path.expanduser("~/.claude/.vmem_ops_log.jsonl")
+OPS_LOG = os.path.expanduser("~/.claude/.cortex_ops_log.jsonl")
 
 raw = sys.argv[1] if len(sys.argv) > 1 else ""
 try:
@@ -27,7 +27,7 @@ if not tool_name.startswith("mcp__vector-memory__"):
 tool_short = tool_name.replace("mcp__vector-memory__", "")
 
 # ================================================================
-# Audit: log every vmem operation
+# Audit: log every cortex operation
 # ================================================================
 try:
     entry = {

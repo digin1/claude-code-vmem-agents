@@ -7,8 +7,8 @@
 
 INPUT=$(cat 2>/dev/null)
 LIB="$(dirname "$0")/lib"
-SESSIONS_LOG="$HOME/.claude/.vmem_sessions.jsonl"
-ACTIVITY_FILE="$HOME/.claude/.vmem_activity"
+SESSIONS_LOG="$HOME/.claude/.cortex_sessions.jsonl"
+ACTIVITY_FILE="$HOME/.claude/.cortex_activity"
 
 # Parse hook input
 read -r SESSION_ID TRANSCRIPT CWD REASON < <(echo "$INPUT" | python3 -c "
@@ -31,7 +31,7 @@ echo "{\"timestamp\":\"$TS\",\"session_id\":\"$SESSION_ID\",\"reason\":\"$REASON
 rm -f "$ACTIVITY_FILE" 2>/dev/null
 
 # Clean temp files older than 24h
-find /tmp -maxdepth 1 -name "vmem-*" -mtime +1 -delete 2>/dev/null
+find /tmp -maxdepth 1 -name "cortex-*" -mtime +1 -delete 2>/dev/null
 
 # ================================================================
 # Phase 2: Session summary (background fork)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Collect vmem memories grouped by project with full content.
+"""Collect cortex memories grouped by project with full content.
 
 Used by agent_bootstrap.sh to provide rich context for agent creation.
 Accepts optional comma-separated project filter as argv[1].

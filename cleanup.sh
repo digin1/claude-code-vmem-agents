@@ -33,7 +33,7 @@ try:
     col = client.get_or_create_collection("claude_memories")
 
     if col.count() == 0:
-        print("[vmem cleanup] Nothing to prune (empty collection)")
+        print("[cortex cleanup] Nothing to prune (empty collection)")
         sys.exit(0)
 
     data = col.get(include=["metadatas", "documents", "embeddings"])
@@ -150,10 +150,10 @@ try:
             parts.append(f"{report['eval_old']} old agent_eval(s)")
         if report["compact_dup"]:
             parts.append(f"{report['compact_dup']} compact duplicate(s)")
-        print(f"[vmem cleanup] Pruned {total}: {', '.join(parts)}")
+        print(f"[cortex cleanup] Pruned {total}: {', '.join(parts)}")
     else:
-        print("[vmem cleanup] Nothing to prune")
+        print("[cortex cleanup] Nothing to prune")
 
 except Exception as e:
-    print(f"[vmem cleanup] Error: {e}")
+    print(f"[cortex cleanup] Error: {e}")
 PYEOF

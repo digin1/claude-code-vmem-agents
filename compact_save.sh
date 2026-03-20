@@ -16,14 +16,14 @@ except: print(' ')
 " 2>/dev/null)
 
 if [ -z "$TRANSCRIPT" ] || [ ! -f "$TRANSCRIPT" ]; then
-    echo "[vmem compact] No transcript available"; exit 0
+    echo "[cortex compact] No transcript available"; exit 0
 fi
 
 # Parse transcript into CONTEXT via lib module
 CONTEXT=$("$LIB/parse_transcript.py" "$TRANSCRIPT" 2>/dev/null)
 
 if [ -z "$CONTEXT" ] || [ ${#CONTEXT} -lt 50 ]; then
-    echo "[vmem compact] Not enough context to summarize"; exit 0
+    echo "[cortex compact] Not enough context to summarize"; exit 0
 fi
 
 # ============================================================
@@ -90,7 +90,7 @@ Output ONLY the JSON array, no markdown wrapping." 2>/dev/null)
 if [ -n "$CREATE_RESULT" ]; then
     CREATED_COUNT=$("$LIB/fleet_create.py" "$CREATE_RESULT" "$CWD" 2>/dev/null)
     if [ "$CREATED_COUNT" -gt 0 ] 2>/dev/null; then
-        echo "[vmem fleet] Created $CREATED_COUNT new agent(s)"
+        echo "[cortex fleet] Created $CREATED_COUNT new agent(s)"
     fi
 fi
 

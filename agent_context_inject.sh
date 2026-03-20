@@ -1,5 +1,5 @@
 #!/bin/bash
-# SubagentStart hook: inject vmem context into agents when they spawn
+# SubagentStart hook: inject cortex context into agents when they spawn
 # Must be FAST (< 500ms) — pure ChromaDB query, no LLM calls
 # Returns additionalContext with domain-relevant memories
 
@@ -100,7 +100,7 @@ try:
     all_items = relevant + feedback_items
 
     if all_items:
-        lines = [f"[vmem] Context for agent '{agent_type}':"]
+        lines = [f"[cortex] Context for agent '{agent_type}':"]
         for item in all_items:
             lines.append(f"  [{item['type']}] {item['id']}: {item['content']}")
 

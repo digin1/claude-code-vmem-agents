@@ -2,9 +2,9 @@
 # Status line for vector memory — multi-line, clear labels, visual indicators
 
 DB_PATH="$HOME/.claude/vector-memory-db"
-ACTIVITY_FILE="$HOME/.claude/.vmem_activity"
-OPS_LOG="$HOME/.claude/.vmem_ops_log.jsonl"
-SESSIONS_LOG="$HOME/.claude/.vmem_sessions.jsonl"
+ACTIVITY_FILE="$HOME/.claude/.cortex_activity"
+OPS_LOG="$HOME/.claude/.cortex_ops_log.jsonl"
+SESSIONS_LOG="$HOME/.claude/.cortex_sessions.jsonl"
 
 # ── Line 1: Memory stats ──
 MEMORY_LINE=$(python3 -W ignore - "$DB_PATH" 2>/dev/null <<'PYEOF'

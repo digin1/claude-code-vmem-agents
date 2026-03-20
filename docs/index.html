@@ -4,33 +4,33 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>claude-code-vmem-agents — Self-Evolving Memory & Auto-Generated Agents for Claude Code</title>
+  <title>cortex — Self-Evolving Memory & Auto-Generated Agents for Claude Code</title>
   <meta name="description" content="The first Claude Code plugin where agents write their own agents. 9-hook lifecycle, persistent vector memory, automatic agent fleet management, memory hygiene, and MCP resources.">
   <meta name="keywords" content="claude code, claude code plugin, claude code agents, claude code subagents, claude code memory, claude code hooks, persistent memory, vector memory, chromadb, auto agent generation, self-evolving agents, claude code skills, anthropic, claude ai, ai agents, ai memory, mcp server, mcp resources">
   <meta name="author" content="Digin Dominic">
   <meta name="robots" content="index, follow">
-  <link rel="canonical" href="https://digindominic.me/claude-code-vmem-agents/">
+  <link rel="canonical" href="https://digindominic.me/cortex/">
 
-  <meta property="og:title" content="claude-code-vmem-agents — Agents That Write Their Own Agents">
+  <meta property="og:title" content="cortex — Agents That Write Their Own Agents">
   <meta property="og:description" content="Self-evolving vector memory + auto-generated subagents for Claude Code. 9 hook events, persistent agent memory, memory hygiene, MCP resources.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://digindominic.me/claude-code-vmem-agents/">
+  <meta property="og:url" content="https://digindominic.me/cortex/">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="claude-code-vmem-agents — Agents That Write Their Own Agents">
+  <meta name="twitter:title" content="cortex — Agents That Write Their Own Agents">
 
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "claude-code-vmem-agents",
-    "alternateName": ["vmem-agents", "claude code memory plugin", "claude code auto agents"],
+    "name": "cortex",
+    "alternateName": ["cortex-agents", "claude code memory plugin", "claude code auto agents"],
     "description": "Self-evolving vector memory and auto-generated agents for Claude Code. 9-hook lifecycle covering session start to end, persistent agent memory, memory hygiene with dedup and consolidation, MCP resources, and automatic agent fleet management.",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Linux, macOS, Windows",
     "programmingLanguage": ["Bash", "Python"],
     "softwareRequirements": "Claude Code v2.1.9+, Python 3.8+, ChromaDB",
     "author": { "@type": "Person", "name": "Digin Dominic", "url": "https://github.com/digin1" },
-    "codeRepository": "https://github.com/digin1/claude-code-vmem-agents",
+    "codeRepository": "https://github.com/digin1/cortex",
     "license": "https://opensource.org/licenses/MIT",
     "isAccessibleForFree": true,
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -194,7 +194,7 @@
       <img src="https://img.shields.io/badge/ChromaDB-Vector_Store-orange?style=flat-square" alt="ChromaDB">
       <img src="https://img.shields.io/badge/Hooks-9_events-blueviolet?style=flat-square" alt="9 Hooks">
     </div>
-    <h1>claude-code-vmem-agents</h1>
+    <h1>cortex</h1>
     <p class="tagline">
       The first Claude Code plugin where <span class="highlight">agents write their own agents</span>.
       Persistent vector memory, 9-hook lifecycle, and self-managing agent fleets.
@@ -206,8 +206,8 @@
       <div class="stat"><div class="num">4</div><div class="label">MCP Resources</div></div>
     </div>
     <div class="cta-row">
-      <a class="cta cta-primary" href="https://github.com/digin1/claude-code-vmem-agents">View on GitHub</a>
-      <a class="cta cta-secondary" href="https://github.com/digin1/claude-code-vmem-agents#-installation">Installation Guide</a>
+      <a class="cta cta-primary" href="https://github.com/digin1/cortex">View on GitHub</a>
+      <a class="cta cta-secondary" href="https://github.com/digin1/cortex#-installation">Installation Guide</a>
     </div>
   </div>
 
@@ -222,7 +222,7 @@
       <div class="feature">
         <div class="icon">🤖</div>
         <h3>Self-Managing Agents</h3>
-        <p>Agents are bootstrapped from vmem knowledge, evaluated on usage, updated with new insights, and retired when obsolete. Full lifecycle.</p>
+        <p>Agents are bootstrapped from cortex knowledge, evaluated on usage, updated with new insights, and retired when obsolete. Full lifecycle.</p>
       </div>
       <div class="feature">
         <div class="icon">🧬</div>
@@ -266,7 +266,7 @@
       <div class="flow"><pre style="background:transparent;border:none;color:inherit;padding:0;margin:0;font-size:inherit;line-height:inherit;">
 <span class="step">Session Start</span>
   <span class="arrow">├──</span> <span class="new">cleanup.sh</span>          prune stale data
-  <span class="arrow">├──</span> <span class="new">agent_bootstrap.sh</span>  create agents from vmem (daily)
+  <span class="arrow">├──</span> <span class="new">agent_bootstrap.sh</span>  create agents from cortex (daily)
   <span class="arrow">└──</span> <span class="new">memory_hygiene.sh</span>   dedup + consolidate (daily)
 
 <span class="step">Every Message</span>
@@ -280,8 +280,8 @@
   <span class="arrow">├──</span> <span class="new">compact_save.sh</span>      extract memories + fleet management
   <span class="arrow">└──</span> <span class="new">post_compact_save.sh</span> extract from compressed summary
 
-<span class="step">Every vmem Tool Call</span>
-  <span class="arrow">└──</span> <span class="new">vmem_pretool_enrich.sh</span>  auto-tag project + audit
+<span class="step">Every cortex Tool Call</span>
+  <span class="arrow">└──</span> <span class="new">cortex_pretool_enrich.sh</span>  auto-tag project + audit
 
 <span class="step">Session Paused</span>
   <span class="arrow">├──</span> <span class="new">learn.sh</span>             prompt to save learnings
@@ -301,7 +301,7 @@
           </thead>
           <tbody>
             <tr><td>UserPromptSubmit</td><td>recall.sh</td><td>Project-aware memory injection into context</td></tr>
-            <tr><td>PreToolUse</td><td>vmem_pretool_enrich.sh</td><td>Auto-tag project + audit log for vmem ops</td></tr>
+            <tr><td>PreToolUse</td><td>cortex_pretool_enrich.sh</td><td>Auto-tag project + audit log for cortex ops</td></tr>
             <tr><td>PostToolUse(Agent)</td><td>agent_track.sh</td><td>Track agent spawns in usage ledger</td></tr>
             <tr><td>SubagentStart</td><td>agent_context_inject.sh</td><td>Inject domain memories into spawned agents</td></tr>
             <tr><td>PreCompact</td><td>compact_save.sh</td><td>Extract memories + create/evaluate agents</td></tr>
@@ -318,7 +318,7 @@
       <h2>Quick Install</h2>
       <div class="install-block">
         <h3>1. Clone & Install</h3>
-        <pre>git clone https://github.com/digin1/claude-code-vmem-agents.git ~/.claude/skills/vmem
+        <pre>git clone https://github.com/digin1/cortex.git ~/.claude/skills/cortex
 pip install chromadb</pre>
       </div>
       <div class="install-block">
@@ -329,7 +329,7 @@ pip install chromadb</pre>
         <h3>3. Configure Hooks</h3>
         <p style="color: var(--muted); font-size: 0.85rem;">
           Copy the hooks configuration from the
-          <a href="https://github.com/digin1/claude-code-vmem-agents#step-5-configure-hooks" style="color: var(--accent);">README</a>
+          <a href="https://github.com/digin1/cortex#step-5-configure-hooks" style="color: var(--accent);">README</a>
           into your <code>~/.claude/settings.json</code>.
         </p>
       </div>
@@ -345,7 +345,7 @@ pip install chromadb</pre>
       <div class="safety-grid">
         <div class="safety-item">
           <h4>Audit Trail</h4>
-          <p>Every store, update, and delete logged to .vmem_audit.jsonl with timestamps</p>
+          <p>Every store, update, and delete logged to .cortex_audit.jsonl with timestamps</p>
         </div>
         <div class="safety-item">
           <h4>Soft Delete</h4>
@@ -373,7 +373,7 @@ pip install chromadb</pre>
   </div>
 
   <footer>
-    Built by <a href="https://github.com/digin1">@digin1</a> &bull; <a href="https://github.com/digin1/claude-code-vmem-agents">GitHub</a> &bull; MIT License
+    Built by <a href="https://github.com/digin1">@digin1</a> &bull; <a href="https://github.com/digin1/cortex">GitHub</a> &bull; MIT License
     <br><br>
     <small>claude code plugin &bull; claude code agents &bull; claude code memory &bull; claude code hooks &bull; persistent vector memory &bull; chromadb &bull; auto agent generation &bull; mcp server &bull; mcp resources &bull; ai coding assistant &bull; anthropic claude</small>
   </footer>

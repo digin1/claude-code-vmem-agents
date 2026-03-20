@@ -46,7 +46,7 @@ try:
 except:
     pass
 
-# Search vmem for context relevant to what the agent just did
+# Search cortex for context relevant to what the agent just did
 if description:
     try:
         _fd = os.dup(2)
@@ -75,7 +75,7 @@ if description:
                     mem_doc = results['documents'][0][i][:200]
                     relevant.append(f"  [{mem_type}] {mem_id}: {mem_doc}")
             if relevant:
-                context = '[vmem] Memories relevant to agent task:\n' + '\n'.join(relevant)
+                context = '[cortex] Memories relevant to agent task:\n' + '\n'.join(relevant)
                 print(json.dumps({
                     'suppressOutput': True,
                     'hookSpecificOutput': {

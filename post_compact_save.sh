@@ -21,7 +21,7 @@ if [ -z "$SUMMARY" ] || [ ${#SUMMARY} -lt 50 ]; then
     exit 0
 fi
 
-echo "[vmem post-compact] Processing compact summary (${#SUMMARY} chars)..."
+echo "[cortex post-compact] Processing compact summary (${#SUMMARY} chars)..."
 
 # Extract memories from the compact summary using haiku
 EXTRACTED=$(echo "$SUMMARY" | claude -p --model haiku "You are a memory extraction system. This is a COMPRESSED conversation summary. Extract ONLY items worth remembering for future sessions.

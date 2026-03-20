@@ -127,7 +127,7 @@ def get_usage_stats():
 
 
 def get_eval_scores():
-    """Fetch latest evaluation scores from vmem."""
+    """Fetch latest evaluation scores from cortex."""
     scores = {}
     try:
         client = chromadb.PersistentClient(path=DB_PATH)

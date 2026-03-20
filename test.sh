@@ -1,5 +1,5 @@
 #!/bin/bash
-# test.sh — Validates all vmem components
+# test.sh — Validates all cortex components
 # Usage: ./test.sh
 # Exit 0 if all pass, exit 1 if any fail
 
@@ -21,7 +21,7 @@ fail() {
 }
 
 # Create isolated temp directory for all test artifacts
-TMPDIR_TEST=$(mktemp -d /tmp/vmem-test.XXXXXX)
+TMPDIR_TEST=$(mktemp -d /tmp/cortex-test.XXXXXX)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
 # Helper: check if string is valid JSON
@@ -118,10 +118,10 @@ TRACK_INPUT=$(cat <<'ENDJSON'
   "tool_name": "Agent",
   "tool_input": {
     "subagent_type": "test-agent",
-    "description": "Validate vmem test harness integration",
+    "description": "Validate cortex test harness integration",
     "model": "sonnet"
   },
-  "cwd": "/tmp/vmem-test"
+  "cwd": "/tmp/cortex-test"
 }
 ENDJSON
 )
@@ -215,18 +215,18 @@ if [ $STATUS_RC -eq 0 ]; then
         BRAIN_OK=0
     fi
 
-    if echo "$STATUS_OUT" | grep -q "vmem:"; then
+    if echo "$STATUS_OUT" | grep -q "cortex"; then
         VMEM_OK=1
     else
         VMEM_OK=0
     fi
 
     if [ "$BRAIN_OK" -eq 1 ] && [ "$VMEM_OK" -eq 1 ]; then
-        pass "statusline.sh — outputs line with brain emoji and 'vmem:'"
+        pass "statusline.sh — outputs line with brain emoji and 'cortex'"
     elif [ "$BRAIN_OK" -eq 0 ]; then
         fail "statusline.sh — format" "missing brain emoji. Output: '$STATUS_OUT'"
     else
-        fail "statusline.sh — format" "missing 'vmem:' substring. Output: '$STATUS_OUT'"
+        fail "statusline.sh — format" "missing 'cortex' substring. Output: '$STATUS_OUT'"
     fi
 else
     fail "statusline.sh — execution" "non-zero exit code: $STATUS_RC"
@@ -263,8 +263,8 @@ CLEANUP_OUT=$(bash "$VMEM_DIR/cleanup.sh" 2>/dev/null)
 CLEANUP_RC=$?
 
 if [ $CLEANUP_RC -eq 0 ]; then
-    if echo "$CLEANUP_OUT" | grep -q "\[vmem cleanup\]"; then
-        pass "cleanup.sh — exits cleanly with [vmem cleanup] output"
+    if echo "$CLEANUP_OUT" | grep -q "\[cortex cleanup\]"; then
+        pass "cleanup.sh — exits cleanly with [cortex cleanup] output"
     else
         # cleanup.sh may produce no output if the python except fires (no DB)
         # The script swallows all errors with bare except: pass
@@ -277,7 +277,7 @@ if [ $CLEANUP_RC -eq 0 ]; then
                 pass "cleanup.sh — exits cleanly (no DB, silent ok)"
             fi
         else
-            fail "cleanup.sh — output" "missing '[vmem cleanup]'. Output: '$CLEANUP_OUT'"
+            fail "cleanup.sh — output" "missing '[cortex cleanup]'. Output: '$CLEANUP_OUT'"
         fi
     fi
 else
@@ -333,7 +333,7 @@ else
 fi
 
 # 7c. parse_transcript.py with nonexistent file should exit 0 with empty output (graceful)
-PT_NOFILE_OUT=$(python3 "$VMEM_DIR/lib/parse_transcript.py" "/tmp/nonexistent_vmem_test_file.jsonl" 2>/dev/null)
+PT_NOFILE_OUT=$(python3 "$VMEM_DIR/lib/parse_transcript.py" "/tmp/nonexistent_cortex_test_file.jsonl" 2>/dev/null)
 PT_NOFILE_RC=$?
 if [ $PT_NOFILE_RC -eq 0 ]; then
     pass "lib/parse_transcript.py — handles nonexistent file gracefully"
@@ -346,14 +346,14 @@ fi
 ###############################################################################
 
 # Build mock JSON input — an array of memory items
-MOCK_MEMORIES='[{"id": "vmem-test-memory-001", "content": "This is a test memory entry from the vmem test harness that should be long enough to pass the minimum length check of ten characters", "type": "project", "tags": "test"}]'
+MOCK_MEMORIES='[{"id": "cortex-test-memory-001", "content": "This is a test memory entry from the cortex test harness that should be long enough to pass the minimum length check of ten characters", "type": "project", "tags": "test"}]'
 
 SM_OUT=$(python3 "$VMEM_DIR/lib/store_memories.py" "$MOCK_MEMORIES" 2>/dev/null)
 SM_RC=$?
 
 if [ $SM_RC -eq 0 ]; then
-    if echo "$SM_OUT" | grep -q "\[vmem compact\]"; then
-        pass "lib/store_memories.py — stores memory and outputs [vmem compact] message"
+    if echo "$SM_OUT" | grep -q "\[cortex compact\]"; then
+        pass "lib/store_memories.py — stores memory and outputs [cortex compact] message"
     elif [ -z "$SM_OUT" ]; then
         # Could be duplicate (cosine < 0.15) or no DB — still valid exit
         pass "lib/store_memories.py — runs without error (no output, likely dedup or first run)"
@@ -383,7 +383,7 @@ try:
     import chromadb
     client = chromadb.PersistentClient(path=os.path.expanduser('~/.claude/vector-memory-db'))
     col = client.get_or_create_collection('claude_memories')
-    col.delete(ids=['vmem-test-memory-001'])
+    col.delete(ids=['cortex-test-memory-001'])
 except: pass
 " 2>/dev/null
 

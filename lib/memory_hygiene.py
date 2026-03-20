@@ -38,9 +38,9 @@ finally:
     os.close(_fd)
 
 DB_PATH = os.path.expanduser("~/.claude/vector-memory-db")
-RECALL_LOG = os.path.expanduser("~/.claude/.vmem_recall_log")
-ACTIVITY_FILE = os.path.expanduser("~/.claude/.vmem_activity")
-AUDIT_LOG = os.path.expanduser("~/.claude/.vmem_audit.jsonl")
+RECALL_LOG = os.path.expanduser("~/.claude/.cortex_recall_log")
+ACTIVITY_FILE = os.path.expanduser("~/.claude/.cortex_activity")
+AUDIT_LOG = os.path.expanduser("~/.claude/.cortex_audit.jsonl")
 
 # Path patterns to extract from memory content
 PATH_REGEX = re.compile(r'(/(?:home|app|remote|colin|tmp|local|usr|dev|zqiu)[/\w.\-]+)')

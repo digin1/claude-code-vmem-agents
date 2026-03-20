@@ -180,13 +180,13 @@ def create_agents(raw, cwd):
         # Hard cap check
         if scope == "project" and scope_counts["project"] >= MAX_PROJECT_AGENTS:
             print(
-                f"[vmem fleet] Skipped '{filename}': project agent cap ({MAX_PROJECT_AGENTS}) reached",
+                f"[cortex fleet] Skipped '{filename}': project agent cap ({MAX_PROJECT_AGENTS}) reached",
                 file=sys.stderr,
             )
             continue
         if scope != "project" and scope_counts["user"] >= MAX_USER_AGENTS:
             print(
-                f"[vmem fleet] Skipped '{filename}': user agent cap ({MAX_USER_AGENTS}) reached",
+                f"[cortex fleet] Skipped '{filename}': user agent cap ({MAX_USER_AGENTS}) reached",
                 file=sys.stderr,
             )
             continue
@@ -208,7 +208,7 @@ def create_agents(raw, cwd):
             new_desc, existing_descriptions, col
         ):
             print(
-                f"[vmem fleet] Skipped '{filename}': semantically similar agent already exists",
+                f"[cortex fleet] Skipped '{filename}': semantically similar agent already exists",
                 file=sys.stderr,
             )
             continue
@@ -222,9 +222,9 @@ def create_agents(raw, cwd):
             # are also checked against this one
             if new_desc:
                 existing_descriptions.append(new_desc)
-            print(f"[vmem fleet] Created agent: {agent_path}", file=sys.stderr)
+            print(f"[cortex fleet] Created agent: {agent_path}", file=sys.stderr)
         except Exception as e:
-            print(f"[vmem fleet] Failed to create {agent_path}: {e}", file=sys.stderr)
+            print(f"[cortex fleet] Failed to create {agent_path}: {e}", file=sys.stderr)
 
     print(created)
     return created

@@ -11,8 +11,8 @@
 #   - Daily cooldown to avoid running every session
 
 LIB="$(dirname "$0")/lib"
-COOLDOWN_DIR="$HOME/.claude/.vmem_hygiene_cooldown"
-ACTIVITY_FILE="$HOME/.claude/.vmem_activity"
+COOLDOWN_DIR="$HOME/.claude/.cortex_hygiene_cooldown"
+ACTIVITY_FILE="$HOME/.claude/.cortex_activity"
 mkdir -p "$COOLDOWN_DIR"
 
 # Daily cooldown
@@ -23,7 +23,7 @@ if [ -f "$COOLDOWN_FILE" ]; then
     exit 0
 fi
 
-echo "[vmem hygiene] Starting memory hygiene..."
+echo "[cortex hygiene] Starting memory hygiene..."
 
 # Run hygiene
 RESULT=$(python3 -W ignore "$LIB/memory_hygiene.py" 2>&1)
@@ -59,9 +59,9 @@ if [ -n "$MERGED" ]; then
     else
         echo "$MERGED" > "$ACTIVITY_FILE"
     fi
-    echo "[vmem hygiene] $MERGED"
+    echo "[cortex hygiene] $MERGED"
 else
-    echo "[vmem hygiene] No changes needed"
+    echo "[cortex hygiene] No changes needed"
 fi
 
 # Set cooldown

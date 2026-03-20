@@ -127,7 +127,7 @@ parts.append(f"Fleet health: {len(active_agents)} active agent(s) (7d), {len(all
 
 if flagged:
     parts.append(f"{len(flagged)} flagged for review: " + "; ".join(flagged))
-    parts.append("Consider reviewing with /vmem agents.")
+    parts.append("Consider reviewing with /cortex agents.")
 
 summary = ". ".join(parts)
 
@@ -137,6 +137,6 @@ if not flagged:
 
 # Output systemMessage (the only output format Stop hooks support)
 print(json.dumps({
-    "systemMessage": f"[vmem fleet] {summary}"
+    "systemMessage": f"[cortex fleet] {summary}"
 }))
 PYEOF

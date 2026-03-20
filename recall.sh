@@ -30,7 +30,7 @@ finally:
     os.close(_fd)
 
 DB_PATH = os.path.expanduser("~/.claude/vector-memory-db")
-ACTIVITY_FILE = os.path.expanduser("~/.claude/.vmem_activity")
+ACTIVITY_FILE = os.path.expanduser("~/.claude/.cortex_activity")
 
 raw = sys.argv[1] if len(sys.argv) > 1 else ""
 
@@ -87,7 +87,7 @@ def is_first_message(transcript_path):
 # Detect project(s) from working directory
 # ================================================================
 def detect_projects(cwd):
-    """Match cwd path components against known vmem project names."""
+    """Match cwd path components against known cortex project names."""
     if not cwd:
         return set()
 
@@ -181,7 +181,7 @@ if first_msg:
 
     # Build structured output
     proj_label = ', '.join(sorted(matched_projects)) if matched_projects else "unknown"
-    lines = [f"[vmem] Session context loaded for project: {proj_label}"]
+    lines = [f"[cortex] Session context loaded for project: {proj_label}"]
 
     headers = {
         "user": "User Profile",
@@ -221,7 +221,7 @@ if first_msg:
 
         # Log recalled IDs for hygiene tracking
         try:
-            recall_log = os.path.expanduser("~/.claude/.vmem_recall_log")
+            recall_log = os.path.expanduser("~/.claude/.cortex_recall_log")
             all_recalled_ids = []
             for section in sections.values():
                 for mid, _, _ in section:
@@ -321,14 +321,14 @@ else:
 
         # Log recalled IDs for hygiene tracking
         try:
-            recall_log = os.path.expanduser("~/.claude/.vmem_recall_log")
+            recall_log = os.path.expanduser("~/.claude/.cortex_recall_log")
             recalled_ids = [r["id"] for r in relevant]
             with open(recall_log, "a") as rl:
                 rl.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {','.join(recalled_ids)}\n")
         except Exception:
             pass
 
-        context_lines = ["[vmem] Recalled memories relevant to this message:"]
+        context_lines = ["[cortex] Recalled memories relevant to this message:"]
         for r in relevant:
             proj_tag = f" [{r['project']}]" if r.get('project') else ""
             context_lines.append(

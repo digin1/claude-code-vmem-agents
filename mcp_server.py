@@ -7,7 +7,7 @@ as native Claude Code tools via the MCP protocol (stdio transport).
 Safety guardrails:
   - Content size limit: 5000 chars per memory
   - Soft-delete: deleted memories archived to audit log before removal
-  - Audit trail: all store/update/delete operations logged to .vmem_audit.jsonl
+  - Audit trail: all store/update/delete operations logged to .cortex_audit.jsonl
   - Total DB cap: 200 memories max
 """
 
@@ -36,7 +36,7 @@ finally:
 from mcp.server.fastmcp import FastMCP
 
 DB_PATH = str(Path.home() / ".claude" / "vector-memory-db")
-AUDIT_LOG = str(Path.home() / ".claude" / ".vmem_audit.jsonl")
+AUDIT_LOG = str(Path.home() / ".claude" / ".cortex_audit.jsonl")
 
 MAX_CONTENT_LENGTH = 5000
 MAX_TOTAL_MEMORIES = 200

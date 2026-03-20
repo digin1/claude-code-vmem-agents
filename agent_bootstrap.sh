@@ -1,11 +1,11 @@
 #!/bin/bash
-# Agent bootstrap: creates agents from accumulated vmem knowledge
+# Agent bootstrap: creates agents from accumulated cortex knowledge
 # Called from SessionStart hook (async) — doesn't block the session
 #
 # Flow:
 #   1. Quick check: does current project need agents? (fast, no LLM)
 #   2. Cooldown check: already bootstrapped today? (skip if so)
-#   3. Collect vmem memories for the project (full content, grouped)
+#   3. Collect cortex memories for the project (full content, grouped)
 #   4. ONE call to claude -p (haiku) to propose agents
 #   5. fleet_create.py creates with semantic dedup (threshold 0.55)
 #
@@ -17,7 +17,7 @@
 
 INPUT=$(cat 2>/dev/null)
 LIB="$(dirname "$0")/lib"
-COOLDOWN_DIR="$HOME/.claude/.vmem_bootstrap_cooldown"
+COOLDOWN_DIR="$HOME/.claude/.cortex_bootstrap_cooldown"
 mkdir -p "$COOLDOWN_DIR"
 
 # Extract cwd from hook input
@@ -70,7 +70,7 @@ try:
         if p and t in ("project", "reference"):
             project_mem_count[p] = project_mem_count.get(p, 0) + 1
 
-    # Match cwd to vmem project names
+    # Match cwd to cortex project names
     cwd_lower = cwd.lower()
     matched = [p for p in project_mem_count if p != "global" and p.lower() in cwd_lower]
 
@@ -138,7 +138,7 @@ if [ "$ALL_COOLED" = true ]; then
     exit 0
 fi
 
-echo "[vmem bootstrap] Projects needing agents: $NEEDS"
+echo "[cortex bootstrap] Projects needing agents: $NEEDS"
 
 # ================================================================
 # Phase 3: Collect memories + existing agents
@@ -161,7 +161,7 @@ except: pass
 " 2>/dev/null)
 
 if [ -z "$MEMORIES" ]; then
-    echo "[vmem bootstrap] No memories to work with"
+    echo "[cortex bootstrap] No memories to work with"
     exit 0
 fi
 
@@ -208,7 +208,7 @@ PROMPT_EOF
 )
 
 if [ -z "$CREATE_RESULT" ]; then
-    echo "[vmem bootstrap] No agent proposals generated"
+    echo "[cortex bootstrap] No agent proposals generated"
     # Still set cooldown to avoid re-trying a failing call
     for proj in $(echo "$NEEDS" | tr ',' ' '); do
         touch "$COOLDOWN_DIR/${proj}_${TODAY}"
@@ -222,10 +222,10 @@ fi
 CREATED=$("$LIB/fleet_create.py" "$CREATE_RESULT" "$CWD" 2>/dev/null)
 
 if [ "$CREATED" -gt 0 ] 2>/dev/null; then
-    echo "[vmem bootstrap] Created $CREATED new agent(s)"
+    echo "[cortex bootstrap] Created $CREATED new agent(s)"
 
     # Update activity indicator
-    ACTIVITY_FILE="$HOME/.claude/.vmem_activity"
+    ACTIVITY_FILE="$HOME/.claude/.cortex_activity"
     EXISTING_ACTIVITY=""
     if [ -f "$ACTIVITY_FILE" ]; then
         EXISTING_ACTIVITY=$(cat "$ACTIVITY_FILE" 2>/dev/null)
@@ -236,7 +236,7 @@ if [ "$CREATED" -gt 0 ] 2>/dev/null; then
         echo "bootstrap: +$CREATED agents" > "$ACTIVITY_FILE"
     fi
 else
-    echo "[vmem bootstrap] No new agents created (existing coverage sufficient)"
+    echo "[cortex bootstrap] No new agents created (existing coverage sufficient)"
 fi
 
 # Set cooldown for all projects

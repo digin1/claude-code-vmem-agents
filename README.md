@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey?style=for-the-badge" alt="Platform">
 </p>
 
-<h1 align="center">claude-code-vmem-agents</h1>
+<h1 align="center">cortex</h1>
 
 <p align="center">
   <strong>Self-evolving vector memory + agent fleet management for Claude Code</strong>
@@ -30,7 +30,7 @@
 
 ## What It Does
 
-vmem gives Claude Code **persistent memory across sessions** and **self-managing agents** that improve over time.
+cortex gives Claude Code **persistent memory across sessions** and **self-managing agents** that improve over time.
 
 - **Memories** are stored as vector embeddings in ChromaDB and silently injected into Claude's context
 - **Agents** are automatically created from accumulated knowledge, evaluated on usage, and retired when obsolete
@@ -58,7 +58,7 @@ vmem gives Claude Code **persistent memory across sessions** and **self-managing
 ### Step 1: Clone
 
 ```bash
-git clone https://github.com/digin1/claude-code-vmem-agents.git ~/.claude/skills/vmem
+git clone https://github.com/digin1/cortex.git ~/.claude/skills/cortex
 ```
 
 ### Step 2: Install Dependencies
@@ -90,7 +90,7 @@ Add to your `~/.claude/.mcp.json` (create if it doesn't exist):
     "vector-memory": {
       "type": "stdio",
       "command": "python3",
-      "args": ["-W", "ignore", "/home/YOUR_USERNAME/.claude/skills/vmem/mcp_server.py"]
+      "args": ["-W", "ignore", "/home/YOUR_USERNAME/.claude/skills/cortex/mcp_server.py"]
     }
   }
 }
@@ -119,7 +119,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
   },
   "statusLine": {
     "type": "command",
-    "command": "bash ~/.claude/skills/vmem/statusline.sh 2>/dev/null",
+    "command": "bash ~/.claude/skills/cortex/statusline.sh 2>/dev/null",
     "padding": 0
   },
   "hooks": {
@@ -128,7 +128,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/vmem/recall.sh 2>/dev/null",
+            "command": "bash ~/.claude/skills/cortex/recall.sh 2>/dev/null",
             "statusMessage": "Recalling relevant memories..."
           }
         ]
@@ -140,8 +140,8 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/vmem/vmem_pretool_enrich.sh 2>/dev/null",
-            "statusMessage": "Enriching vmem operation..."
+            "command": "bash ~/.claude/skills/cortex/cortex_pretool_enrich.sh 2>/dev/null",
+            "statusMessage": "Enriching cortex operation..."
           }
         ]
       }
@@ -152,7 +152,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/vmem/agent_track.sh 2>/dev/null",
+            "command": "bash ~/.claude/skills/cortex/agent_track.sh 2>/dev/null",
             "statusMessage": "Tracking agent usage..."
           }
         ]
@@ -163,7 +163,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/vmem/compact_save.sh 2>/dev/null",
+            "command": "bash ~/.claude/skills/cortex/compact_save.sh 2>/dev/null",
             "statusMessage": "Extracting learnings + managing agent fleet..."
           }
         ]
@@ -174,7 +174,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/vmem/post_compact_save.sh 2>/dev/null",
+            "command": "bash ~/.claude/skills/cortex/post_compact_save.sh 2>/dev/null",
             "statusMessage": "Extracting knowledge from compressed context..."
           }
         ]
@@ -185,8 +185,8 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/vmem/agent_context_inject.sh 2>/dev/null",
-            "statusMessage": "Injecting vmem context into agent..."
+            "command": "bash ~/.claude/skills/cortex/agent_context_inject.sh 2>/dev/null",
+            "statusMessage": "Injecting cortex context into agent..."
           }
         ]
       }
@@ -196,7 +196,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/vmem/cleanup.sh 2>/dev/null",
+            "command": "bash ~/.claude/skills/cortex/cleanup.sh 2>/dev/null",
             "statusMessage": "Cleaning stale memory snapshots...",
             "async": true
           }
@@ -206,8 +206,8 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/vmem/agent_bootstrap.sh 2>/dev/null",
-            "statusMessage": "Bootstrapping agents from vmem...",
+            "command": "bash ~/.claude/skills/cortex/agent_bootstrap.sh 2>/dev/null",
+            "statusMessage": "Bootstrapping agents from cortex...",
             "async": true
           }
         ]
@@ -216,7 +216,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/vmem/memory_hygiene.sh 2>/dev/null",
+            "command": "bash ~/.claude/skills/cortex/memory_hygiene.sh 2>/dev/null",
             "statusMessage": "Memory hygiene check...",
             "async": true
           }
@@ -228,7 +228,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/vmem/session_end_cleanup.sh 2>/dev/null",
+            "command": "bash ~/.claude/skills/cortex/session_end_cleanup.sh 2>/dev/null",
             "statusMessage": "Saving session summary..."
           }
         ]
@@ -239,7 +239,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/vmem/learn.sh",
+            "command": "bash ~/.claude/skills/cortex/learn.sh",
             "statusMessage": "Saving session learnings..."
           }
         ]
@@ -248,7 +248,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/vmem/fleet_eval_stop.sh",
+            "command": "bash ~/.claude/skills/cortex/fleet_eval_stop.sh",
             "statusMessage": "Evaluating agent fleet health..."
           }
         ]
@@ -264,10 +264,10 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
 
 ```bash
 # Run the test suite
-bash ~/.claude/skills/vmem/test.sh
+bash ~/.claude/skills/cortex/test.sh
 
 # Check status line
-bash ~/.claude/skills/vmem/statusline.sh
+bash ~/.claude/skills/cortex/statusline.sh
 ```
 
 Then restart Claude Code. You should see the status line at the bottom and memories will start accumulating automatically.
@@ -275,7 +275,7 @@ Then restart Claude Code. You should see the status line at the bottom and memor
 ### Quick Install (Alternative)
 
 ```bash
-bash ~/.claude/skills/vmem/install.sh
+bash ~/.claude/skills/cortex/install.sh
 ```
 
 ---
@@ -289,7 +289,7 @@ Every session follows this automatic flow:
 ```
 Session Start
   ├── cleanup.sh          → prune stale data (async)
-  ├── agent_bootstrap.sh  → create agents from vmem knowledge (async, daily)
+  ├── agent_bootstrap.sh  → create agents from cortex knowledge (async, daily)
   └── memory_hygiene.sh   → dedup, validate paths, consolidate (async, daily)
 
 Every Message
@@ -312,13 +312,13 @@ Session Paused
 Session Ended
   └── session_end_cleanup.sh → save session summary, clean temp files
 
-Every vmem Tool Call
-  └── vmem_pretool_enrich.sh → auto-tag project from cwd, log to audit trail
+Every cortex Tool Call
+  └── cortex_pretool_enrich.sh → auto-tag project from cwd, log to audit trail
 ```
 
 ### Project-Aware First-Message Recall
 
-On the first message of every session, vmem detects your project from `cwd` and loads **all relevant memories** — not just semantic matches:
+On the first message of every session, cortex detects your project from `cwd` and loads **all relevant memories** — not just semantic matches:
 
 | Category | What's loaded | Why |
 |---|---|---|
@@ -339,14 +339,14 @@ Memories are injected via Claude Code's `additionalContext` API — Claude sees 
   "suppressOutput": true,
   "hookSpecificOutput": {
     "hookEventName": "UserPromptSubmit",
-    "additionalContext": "[vmem] Session context loaded for project: my-project\n..."
+    "additionalContext": "[cortex] Session context loaded for project: my-project\n..."
   }
 }
 ```
 
 ### Agent Context Injection
 
-When any subagent spawns, the `SubagentStart` hook queries vmem for memories relevant to that agent type and injects them. A `dask-optimizer` agent automatically gets Dask-related memories; a `swarm-deployer` gets deployment knowledge.
+When any subagent spawns, the `SubagentStart` hook queries cortex for memories relevant to that agent type and injects them. A `dask-optimizer` agent automatically gets Dask-related memories; a `swarm-deployer` gets deployment knowledge.
 
 ---
 
@@ -355,13 +355,13 @@ When any subagent spawns, the `SubagentStart` hook queries vmem for memories rel
 | Hook Event | Script | Sync/Async | What It Does |
 |---|---|---|---|
 | `UserPromptSubmit` | `recall.sh` | Sync | Inject memories into Claude's context |
-| `PreToolUse` | `vmem_pretool_enrich.sh` | Sync | Auto-tag project + audit log for vmem ops |
+| `PreToolUse` | `cortex_pretool_enrich.sh` | Sync | Auto-tag project + audit log for cortex ops |
 | `PostToolUse(Agent)` | `agent_track.sh` | Sync | Track agent spawns in usage ledger |
 | `SubagentStart` | `agent_context_inject.sh` | Sync | Inject domain memories into spawned agents |
 | `PreCompact` | `compact_save.sh` | Sync | Extract memories + create/evaluate agents |
 | `PostCompact` | `post_compact_save.sh` | Sync | Extract insights from compressed summary |
 | `SessionStart` | `cleanup.sh` | Async | Prune stale data |
-| `SessionStart` | `agent_bootstrap.sh` | Async | Bootstrap agents from vmem (daily) |
+| `SessionStart` | `agent_bootstrap.sh` | Async | Bootstrap agents from cortex (daily) |
 | `SessionStart` | `memory_hygiene.sh` | Async | Dedup, path validation, consolidation (daily) |
 | `SessionEnd` | `session_end_cleanup.sh` | Sync | Save session summary + cleanup |
 | `Stop` | `learn.sh` | Sync | Prompt Claude to save learnings |
@@ -375,7 +375,7 @@ When any subagent spawns, the `SubagentStart` hook queries vmem for memories rel
 
 Agents are created from two sources:
 
-1. **Bootstrap** (`SessionStart`): Queries vmem for accumulated knowledge. If a project has 3+ memories but fewer than 2 agents, it uses `claude -p --model haiku` to propose new agents. Runs once per project per day.
+1. **Bootstrap** (`SessionStart`): Queries cortex for accumulated knowledge. If a project has 3+ memories but fewer than 2 agents, it uses `claude -p --model haiku` to propose new agents. Runs once per project per day.
 
 2. **Compact** (`PreCompact`): Analyzes the conversation transcript for recurring patterns. Creates 0-5 agents per compaction event with semantic dedup (cosine < 0.55).
 
@@ -384,7 +384,7 @@ Agents are created from two sources:
 On every PreCompact, the system:
 - **Scores** each agent 1-5 based on relevance, quality, and usage data
 - **Updates** agents with stale instructions (creates `.bak` backup first)
-- **Retires** low-scoring agents (extracts knowledge to vmem, moves to `.retired/`)
+- **Retires** low-scoring agents (extracts knowledge to cortex, moves to `.retired/`)
 
 ### Persistent Agent Memory
 
@@ -409,9 +409,9 @@ This means agents **accumulate knowledge across sessions** in their own `MEMORY.
 | Metric | How it's tracked |
 |---|---|
 | Usage count | JSONL ledger (`~/.claude/agent-usage.jsonl`) |
-| Eval scores | Stored in vmem as `agent_eval` type memories |
+| Eval scores | Stored in cortex as `agent_eval` type memories |
 | Health status | Based on score + 7-day usage |
-| Fleet dashboard | Run `/vmem agents` for full report |
+| Fleet dashboard | Run `/cortex agents` for full report |
 
 ### Hard Caps
 
@@ -436,7 +436,7 @@ Finds memory pairs with cosine distance < 0.35 within the same type. Keeps the l
 Extracts file paths from memory content and checks if they still exist on the filesystem. Flags broken paths with `stale_path` tag. Skips NAS mounts (`/remote/`) and container paths (`/app/`). **Never deletes** — only flags.
 
 ### Phase 3: Recall Tracking
-Reads the recall log (`~/.claude/.vmem_recall_log`) and updates each memory's `last_recalled` timestamp and `recall_count`. This data informs future hygiene decisions.
+Reads the recall log (`~/.claude/.cortex_recall_log`) and updates each memory's `last_recalled` timestamp and `recall_count`. This data informs future hygiene decisions.
 
 ### Phase 4: Consolidation
 For groups of 3+ related memories in the same project, uses `claude -p --model haiku` to merge them into 1 comprehensive memory. Only runs when 15+ total memories exist. Originals are deleted only after successful consolidation.
@@ -458,13 +458,13 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 
 | Command | Description |
 |---|---|
-| `/vmem store <content>` | Store a new memory |
-| `/vmem search <query>` | Semantic search across all memories |
-| `/vmem list` | List all memories |
-| `/vmem stats` | Database statistics |
-| `/vmem delete <id>` | Delete a memory (archived to audit log) |
-| `/vmem update <id>` | Update a memory |
-| `/vmem agents` | Fleet health dashboard |
+| `/cortex store <content>` | Store a new memory |
+| `/cortex search <query>` | Semantic search across all memories |
+| `/cortex list` | List all memories |
+| `/cortex stats` | Database statistics |
+| `/cortex delete <id>` | Delete a memory (archived to audit log) |
+| `/cortex update <id>` | Update a memory |
+| `/cortex agents` | Fleet health dashboard |
 
 ---
 
@@ -483,24 +483,24 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 
 ```
 ~/.claude/
-├── skills/vmem/
+├── skills/cortex/
 │   ├── recall.sh                  # UserPromptSubmit: project-aware context injection
-│   ├── vmem_pretool_enrich.sh     # PreToolUse: auto-tag project + audit
+│   ├── cortex_pretool_enrich.sh     # PreToolUse: auto-tag project + audit
 │   ├── agent_context_inject.sh    # SubagentStart: inject domain memories into agents
 │   ├── compact_save.sh            # PreCompact: extract memories + fleet management
 │   ├── post_compact_save.sh       # PostCompact: extract from compressed summary
-│   ├── agent_bootstrap.sh         # SessionStart: create agents from vmem knowledge
+│   ├── agent_bootstrap.sh         # SessionStart: create agents from cortex knowledge
 │   ├── memory_hygiene.sh          # SessionStart: dedup, validate, consolidate
 │   ├── cleanup.sh                 # SessionStart: prune stale data
 │   ├── learn.sh                   # Stop: prompt to save learnings
 │   ├── fleet_eval_stop.sh         # Stop: lightweight fleet health check
 │   ├── session_end_cleanup.sh     # SessionEnd: save summary + cleanup
 │   ├── agent_track.sh             # PostToolUse(Agent): log spawns
-│   ├── agent_dashboard.py         # /vmem agents command
+│   ├── agent_dashboard.py         # /cortex agents command
 │   ├── statusline.sh              # Multi-line status bar
 │   ├── mcp_server.py              # MCP server: 6 tools + 4 resources
 │   ├── memory_db.py               # ChromaDB CLI wrapper
-│   ├── SKILL.md                   # Skill definition for /vmem
+│   ├── SKILL.md                   # Skill definition for /cortex
 │   ├── test.sh                    # Test suite
 │   └── lib/
 │       ├── parse_transcript.py    # Transcript JSONL parser
@@ -514,11 +514,11 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │       └── collect_memories.py    # ChromaDB memory reader
 ├── vector-memory-db/              # ChromaDB persistent storage
 ├── agent-usage.jsonl              # Agent spawn ledger
-├── .vmem_activity                 # Live activity indicator
-├── .vmem_audit.jsonl              # Audit trail for all memory operations
-├── .vmem_recall_log               # Recall tracking for hygiene
-├── .vmem_ops_log.jsonl            # PreToolUse operation log
-├── .vmem_sessions.jsonl           # Session start/end markers
+├── .cortex_activity                 # Live activity indicator
+├── .cortex_audit.jsonl              # Audit trail for all memory operations
+├── .cortex_recall_log               # Recall tracking for hygiene
+├── .cortex_ops_log.jsonl            # PreToolUse operation log
+├── .cortex_sessions.jsonl           # Session start/end markers
 └── agents/
     ├── *.md                       # Active global agents (memory: user)
     └── .retired/                  # Soft-retired agents
@@ -534,7 +534,7 @@ Project-level agents live at `<project>/.claude/agents/*.md` with `memory: proje
 |---|---|
 | **Content size limit** | Max 5000 chars per memory |
 | **Database cap** | Max 200 total memories |
-| **Audit trail** | All store/update/delete operations logged to `.vmem_audit.jsonl` |
+| **Audit trail** | All store/update/delete operations logged to `.cortex_audit.jsonl` |
 | **Soft delete** | Deleted memory content archived to audit log before removal |
 | **Merge tracking** | Merged memories tagged with `merged_from` ID |
 | **Consolidation tracking** | Consolidated memories tagged with `consolidated_from` IDs |
@@ -545,9 +545,9 @@ Project-level agents live at `<project>/.claude/agents/*.md` with `memory: proje
 | **Agent filename sanitization** | Only `[a-z0-9\-_.]` allowed |
 | **Semantic dedup** | 0.55 threshold for agents, 0.15 for memories, 0.35 for hygiene merges |
 | **Backup before update** | Timestamped `.bak` files before agent overwrites |
-| **Soft retire** | Agents moved to `.retired/` with knowledge extracted to vmem |
+| **Soft retire** | Agents moved to `.retired/` with knowledge extracted to cortex |
 | **Daily cooldowns** | Bootstrap + hygiene run max once per project per day |
-| **Operation logging** | Every vmem tool call logged via PreToolUse hook |
+| **Operation logging** | Every cortex tool call logged via PreToolUse hook |
 | **Auto project tagging** | PreToolUse enriches memory_store with project from cwd |
 
 ---

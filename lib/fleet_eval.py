@@ -6,7 +6,7 @@ Handles:
 - Connect to ChromaDB (col=None guard)
 - Persist evaluations as agent_eval type
 - Update agents (with .bak backup, path validation)
-- Retire agents (knowledge extraction to vmem, move to .retired/)
+- Retire agents (knowledge extraction to cortex, move to .retired/)
 - Path traversal protection using os.path.realpath()
 """
 import sys
@@ -20,7 +20,7 @@ warnings.filterwarnings("ignore")
 os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
 
 DB_PATH = os.path.expanduser("~/.claude/vector-memory-db")
-ACTIVITY_FILE = os.path.expanduser("~/.claude/.vmem_activity")
+ACTIVITY_FILE = os.path.expanduser("~/.claude/.cortex_activity")
 
 
 def strip_code_fences(raw):
@@ -93,10 +93,10 @@ def persist_evaluations(result, col, ts):
                 },
             )
             print(
-                f"[vmem fleet] Eval {name}: {score}/5 (usage: {usage}) -- {notes}"
+                f"[cortex fleet] Eval {name}: {score}/5 (usage: {usage}) -- {notes}"
             )
     except Exception as e:
-        print(f"[vmem fleet] Eval storage error: {e}")
+        print(f"[cortex fleet] Eval storage error: {e}")
 
 
 def update_agents(result, cwd):
@@ -114,7 +114,7 @@ def update_agents(result, cwd):
 
         if not is_path_allowed(path, cwd):
             print(
-                f"[vmem fleet] Blocked update to path outside agent dirs: {path}"
+                f"[cortex fleet] Blocked update to path outside agent dirs: {path}"
             )
             continue
 
@@ -129,14 +129,14 @@ def update_agents(result, cwd):
             with open(path, "w") as f:
                 f.write(content)
             updated += 1
-            print(f"[vmem fleet] Updated {os.path.basename(path)}: {reason}")
+            print(f"[cortex fleet] Updated {os.path.basename(path)}: {reason}")
         except Exception as e:
-            print(f"[vmem fleet] Failed to update {path}: {e}")
+            print(f"[cortex fleet] Failed to update {path}: {e}")
     return updated
 
 
 def retire_agents(result, cwd, col, ts):
-    """Retire agents with knowledge extraction to vmem."""
+    """Retire agents with knowledge extraction to cortex."""
     retired = 0
     for agent in result.get("retire", []):
         if not isinstance(agent, dict):
@@ -149,11 +149,11 @@ def retire_agents(result, cwd, col, ts):
 
         if not is_path_allowed(path, cwd):
             print(
-                f"[vmem fleet] Blocked retire of path outside agent dirs: {path}"
+                f"[cortex fleet] Blocked retire of path outside agent dirs: {path}"
             )
             continue
 
-        # Extract knowledge from agent before retiring (only if vmem connected)
+        # Extract knowledge from agent before retiring (only if cortex connected)
         if col is not None:
             try:
                 with open(path, "r") as f:
@@ -172,7 +172,7 @@ def retire_agents(result, cwd, col, ts):
                     parts[2].strip() if len(parts) >= 3 else agent_content
                 )
 
-                # Store the agent's accumulated knowledge in vmem
+                # Store the agent's accumulated knowledge in cortex
                 knowledge_id = f"retired_agent_knowledge_{agent_name}"
                 knowledge_content = f"Knowledge from retired agent '{agent_name}': {system_prompt[:1500]}"
 
@@ -189,11 +189,11 @@ def retire_agents(result, cwd, col, ts):
                     },
                 )
                 print(
-                    f"[vmem fleet] Preserved knowledge from '{agent_name}' before retiring"
+                    f"[cortex fleet] Preserved knowledge from '{agent_name}' before retiring"
                 )
             except Exception as e:
                 print(
-                    f"[vmem fleet] Knowledge extraction failed for {path}: {e}"
+                    f"[cortex fleet] Knowledge extraction failed for {path}: {e}"
                 )
 
         # Move to .retired/
@@ -203,9 +203,9 @@ def retire_agents(result, cwd, col, ts):
         try:
             os.rename(path, retired_path)
             retired += 1
-            print(f"[vmem fleet] Retired {os.path.basename(path)}: {reason}")
+            print(f"[cortex fleet] Retired {os.path.basename(path)}: {reason}")
         except Exception as e:
-            print(f"[vmem fleet] Failed to retire {path}: {e}")
+            print(f"[cortex fleet] Failed to retire {path}: {e}")
     return retired
 
 
@@ -252,7 +252,7 @@ def evaluate_fleet(raw, cwd):
         client = chromadb.PersistentClient(path=DB_PATH)
         col = client.get_or_create_collection("claude_memories")
     except Exception as e:
-        print(f"[vmem fleet] ChromaDB connection failed: {e}")
+        print(f"[cortex fleet] ChromaDB connection failed: {e}")
 
     # Persist evaluations
     persist_evaluations(result, col, ts)
@@ -268,7 +268,7 @@ def evaluate_fleet(raw, cwd):
 
     evals = len(result.get("evaluations", []))
     print(
-        f"[vmem fleet] Reconciliation: {updated} updated, {retired} retired, {evals} evaluated"
+        f"[cortex fleet] Reconciliation: {updated} updated, {retired} retired, {evals} evaluated"
     )
 
 
