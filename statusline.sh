@@ -139,7 +139,25 @@ elif usage_total > 0:
 print(f'{total} agents ({scope_text}){usage_text}{avg_score}')
 " 2>/dev/null)
 
-# ── Line 3: Today's operations ──
+# ── Line 3: Auto-discovered skills ──
+SKILLS_LINE=$(/usr/bin/python3 -W ignore -c "
+import os, glob
+proj_dir = '.claude/commands'
+global_dir = os.path.expanduser('~/.claude/commands')
+proj_count = len(glob.glob(os.path.join(proj_dir, '*.md'))) if os.path.isdir(proj_dir) else 0
+global_count = len(glob.glob(os.path.join(global_dir, '*.md'))) if os.path.isdir(global_dir) else 0
+total = proj_count + global_count
+if total == 0:
+    exit(0)
+parts = []
+if proj_count:
+    parts.append(f'{proj_count} project')
+if global_count:
+    parts.append(f'{global_count} global')
+print(f'{total} skills ({\" + \".join(parts)})')
+" 2>/dev/null)
+
+# ── Line 4: Today's operations ──
 OPS_LINE=""
 if [ -f "$OPS_LOG" ]; then
     TODAY=$(date +%Y-%m-%d)
@@ -165,6 +183,10 @@ OUTPUT="\U0001f9e0 ${MEMORY_LINE}"
 
 if [ -n "$FLEET_LINE" ]; then
     OUTPUT="${OUTPUT}\n\U0001f916 ${FLEET_LINE}"
+fi
+
+if [ -n "$SKILLS_LINE" ]; then
+    OUTPUT="${OUTPUT}\n\U0001f4da ${SKILLS_LINE}"
 fi
 
 # Combine ops + activity on one line if both exist
