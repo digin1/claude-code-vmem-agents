@@ -7,7 +7,9 @@
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey?style=for-the-badge" alt="Platform">
 </p>
 
-<h1 align="center">cortex</h1>
+<p align="center">
+  <img src="docs/logo.svg" alt="cortex" width="360">
+</p>
 
 <p align="center">
   <strong>Self-evolving vector memory + agent fleet management for Claude Code</strong>
