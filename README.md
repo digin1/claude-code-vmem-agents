@@ -525,6 +525,7 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │   ├── config/
 │   │   ├── CLAUDE.md              # Global behavioral rules → ~/.claude/CLAUDE.md
 │   │   └── cortex-memory.md       # Memory rules → ~/.claude/rules/cortex-memory.md
+│   ├── .retired/                  # Retired agents (outside agents/ to avoid Claude discovery)
 │   └── lib/
 │       ├── parse_transcript.py    # Transcript JSONL parser
 │       ├── store_memories.py      # Memory storage with dedup
@@ -543,8 +544,7 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 ├── .cortex_ops_log.jsonl            # PreToolUse operation log
 ├── .cortex_sessions.jsonl           # Session start/end markers
 └── agents/
-    ├── *.md                       # Active global agents (memory: user)
-    └── .retired/                  # Soft-retired agents
+    └── *.md                       # Active global agents (memory: user)
 ```
 
 Project-level agents live at `<project>/.claude/agents/*.md` with `memory: project`.
@@ -568,7 +568,7 @@ Project-level agents live at `<project>/.claude/agents/*.md` with `memory: proje
 | **Agent filename sanitization** | Only `[a-z0-9\-_.]` allowed |
 | **Semantic dedup** | 0.55 threshold for agents, 0.15 for memories, 0.35 for hygiene merges |
 | **Backup before update** | Timestamped `.bak` files before agent overwrites |
-| **Soft retire** | Agents moved to `.retired/` with knowledge extracted to cortex |
+| **Soft retire** | Agents moved to cortex `.retired/` (outside `agents/` to avoid Claude Code discovery) |
 | **Daily cooldowns** | Bootstrap + hygiene run max once per project per day |
 | **Operation logging** | Every cortex tool call logged via PreToolUse hook |
 | **Auto project tagging** | PreToolUse enriches memory_store with project from cwd |

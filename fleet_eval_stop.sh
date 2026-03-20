@@ -103,6 +103,25 @@ all_agents = set(total_usage.keys()) | set(eval_scores.keys())
 # Filter out "general-purpose" — that's the default, not a real agent
 all_agents.discard("general-purpose")
 
+# Filter out retired agents (in cortex .retired/ dir)
+import glob
+RETIRED_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".retired")
+retired_names = set()
+if os.path.isdir(RETIRED_DIR):
+    for f in glob.glob(os.path.join(RETIRED_DIR, "*.md")):
+        # Extract agent name from filename and frontmatter
+        basename = os.path.basename(f).replace(".md", "")
+        retired_names.add(basename)
+        try:
+            with open(f) as fh:
+                for line in fh:
+                    if line.startswith("name:"):
+                        retired_names.add(line.split(":", 1)[1].strip())
+                        break
+        except:
+            pass
+all_agents -= retired_names
+
 if not all_agents:
     suppress()
 

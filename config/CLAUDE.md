@@ -10,3 +10,7 @@ A persistent vector memory system (cortex) is available via MCP tools. It stores
 - The `UserPromptSubmit` hook auto-injects relevant memories as context, but it may miss some due to semantic distance thresholds. When the auto-injected context doesn't cover the user's question, search manually.
 - When you learn something new about the user, their project, workflow, or preferences that would be useful in future sessions, store it in cortex using `mcp__cortex__memory_store` with an appropriate `memory_type` (user, feedback, project, reference).
 - Use `/cortex learn` at end of productive sessions to extract and store learnings.
+
+## Specialized Agents
+
+Project-specific agents are available in `.claude/agents/`. When a task matches an agent's description, prefer using it over the general-purpose agent — specialized agents have domain knowledge and cortex memories injected automatically via the SubagentStart hook.

@@ -56,8 +56,8 @@ def get_agents():
             except:
                 pass
 
-        # Also check retired
-        retired_dir = os.path.join(d, ".retired")
+        # Also check retired (in cortex dir, not agents/ — avoids Claude Code discovery)
+        retired_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".retired")
         if os.path.isdir(retired_dir):
             for f in sorted(glob.glob(os.path.join(retired_dir, "*.md"))):
                 try:
