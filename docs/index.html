@@ -45,7 +45,9 @@
       "MCP Resources for @memory:// references",
       "PreToolUse enrichment: auto-tag project + audit trail",
       "SubagentStart context injection into spawned agents",
-      "Multi-line status line with clear metrics",
+      "Remember-keyword detection with boosted recall thresholds",
+      "Progressive disclosure: 250-char summaries with on-demand full content",
+      "Global behavioral rules: CLAUDE.md + rules/ config templates",
       "Safety: audit log, content limits, soft delete, hard caps"
     ]
   }
@@ -217,8 +219,8 @@
     <div class="features">
       <div class="feature">
         <div class="icon">🧠</div>
-        <h3>Project-Aware Recall</h3>
-        <p>First message loads ALL project memories automatically. Subsequent messages use targeted semantic search with project boosting.</p>
+        <h3>Smart Recall with Keyword Boost</h3>
+        <p>First message loads all project memories with progressive disclosure (250-char summaries). "Remember" queries get boosted thresholds (0.75-0.85) and more results.</p>
       </div>
       <div class="feature">
         <div class="icon">🤖</div>
@@ -251,9 +253,9 @@
         <p>PreToolUse hook detects project from working directory and auto-tags every memory_store call. No manual project scoping needed.</p>
       </div>
       <div class="feature">
-        <div class="icon">📊</div>
-        <h3>Multi-Line Status</h3>
-        <p>Clear, readable status bar showing memory count, agent fleet, spawn stats, and live activity. No cryptic abbreviations.</p>
+        <div class="icon">📋</div>
+        <h3>Global Behavioral Rules</h3>
+        <p>Ships with <code>config/CLAUDE.md</code> and <code>config/cortex-memory.md</code> &mdash; global rules that teach Claude to always search memory before saying "I don't know".</p>
       </div>
       <div class="feature">
         <div class="icon">💾</div>
@@ -271,7 +273,7 @@
   <span class="arrow">└──</span> <span class="new">memory_hygiene.sh</span>   dedup + consolidate (daily)
 
 <span class="step">Every Message</span>
-  <span class="arrow">└──</span> <span class="new">recall.sh</span>           inject memories (first msg: full project load)
+  <span class="arrow">└──</span> <span class="new">recall.sh</span>           smart recall + keyword boost + progressive disclosure
 
 <span class="step">Agent Spawned</span>
   <span class="arrow">├──</span> <span class="new">agent_context_inject.sh</span>  inject domain memories
@@ -301,7 +303,7 @@
             <tr><th>Hook Event</th><th>Script</th><th>What It Does</th></tr>
           </thead>
           <tbody>
-            <tr><td>UserPromptSubmit</td><td>recall.sh</td><td>Project-aware memory injection into context</td></tr>
+            <tr><td>UserPromptSubmit</td><td>recall.sh</td><td>Smart recall with keyword boost + progressive disclosure</td></tr>
             <tr><td>PreToolUse</td><td>cortex_pretool_enrich.sh</td><td>Auto-tag project + audit log for cortex ops</td></tr>
             <tr><td>PostToolUse(Agent)</td><td>agent_track.sh</td><td>Track agent spawns in usage ledger</td></tr>
             <tr><td>SubagentStart</td><td>agent_context_inject.sh</td><td>Inject domain memories into spawned agents</td></tr>
@@ -335,7 +337,13 @@ pip install chromadb</pre>
         </p>
       </div>
       <div class="install-block">
-        <h3>4. Restart Claude Code</h3>
+        <h3>4. Install Global Behavioral Rules</h3>
+        <pre>cp ~/.claude/skills/cortex/config/CLAUDE.md ~/.claude/CLAUDE.md
+mkdir -p ~/.claude/rules
+cp ~/.claude/skills/cortex/config/cortex-memory.md ~/.claude/rules/cortex-memory.md</pre>
+      </div>
+      <div class="install-block">
+        <h3>5. Restart Claude Code</h3>
         <pre>🧠 39 memories (17 project, 15 feedback, 6 reference, 1 user) across 4 projects
 🤖 10 agents (5 project + 5 global) | 5 spawns today | health 4.2/5</pre>
       </div>
