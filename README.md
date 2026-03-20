@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License">
   <img src="https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.8+">
   <img src="https://img.shields.io/badge/ChromaDB-Vector_Store-orange?style=for-the-badge" alt="ChromaDB">
-  <img src="https://img.shields.io/badge/Hooks-9_events-blueviolet?style=for-the-badge" alt="9 Hook Events">
+  <img src="https://img.shields.io/badge/Hooks-10_events-blueviolet?style=for-the-badge" alt="10 Hook Events">
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey?style=for-the-badge" alt="Platform">
 </p>
 
@@ -20,6 +20,7 @@
 <p align="center">
   <a href="#-installation">Installation</a> &bull;
   <a href="#-how-it-works">How It Works</a> &bull;
+  <a href="#-auto-skill-discovery">Skill Discovery</a> &bull;
   <a href="#-hook-reference">Hook Reference</a> &bull;
   <a href="#-agent-fleet-management">Fleet Management</a> &bull;
   <a href="#-memory-hygiene">Memory Hygiene</a> &bull;
@@ -36,12 +37,14 @@ cortex gives Claude Code **persistent memory across sessions** and **self-managi
 
 - **Memories** are stored as vector embeddings in ChromaDB and silently injected into Claude's context
 - **Agents** are automatically created from accumulated knowledge, evaluated on usage, and retired when obsolete
-- **9 hook events** cover the entire session lifecycle — from startup to shutdown
-- **Multi-project** aware — memories are scoped per project, agents exist at project and global levels
+- **Skills** are auto-discovered from your project's tech stack and generated as slash commands with best practices baked in
+- **10 hook events** cover the entire session lifecycle — from startup to shutdown
+- **Multi-project** aware — memories are scoped per project, agents and skills exist at project and global levels
 
 ```
-🧠 39 memories (17 project, 15 feedback, 6 reference, 1 user) across 4 projects
+🧠 85 memories (39 project, 17 feedback, 18 reference, 1 user) across 4 projects
 🤖 10 agents (5 project + 5 global) | 5 spawns today | health 4.2/5
+📚 3 skills (2 project + 1 global)
 ⚡ loaded 31 memories (session start)
 ```
 
@@ -223,6 +226,16 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
             "async": true
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/skills/cortex/skill_discover.sh 2>/dev/null",
+            "statusMessage": "Discovering project skills...",
+            "async": true
+          }
+        ]
       }
     ],
     "SessionEnd": [
@@ -273,6 +286,7 @@ cp ~/.claude/skills/cortex/config/CLAUDE.md ~/.claude/CLAUDE.md
 # Global rules — loaded on-demand for cortex-related behavior
 mkdir -p ~/.claude/rules
 cp ~/.claude/skills/cortex/config/cortex-memory.md ~/.claude/rules/cortex-memory.md
+cp ~/.claude/skills/cortex/config/skill-discovery.md ~/.claude/rules/skill-discovery.md
 ```
 
 > **Why?** Without these, Claude may not search cortex when you ask "do you remember X" — the recall hook injects context automatically, but if it misses something, Claude needs to know it should search manually. These files close that gap.
@@ -307,7 +321,8 @@ Every session follows this automatic flow:
 Session Start
   ├── cleanup.sh          → prune stale data (async)
   ├── agent_bootstrap.sh  → create agents from cortex knowledge (async, daily)
-  └── memory_hygiene.sh   → dedup, validate paths, consolidate (async, daily)
+  ├── memory_hygiene.sh   → dedup, validate paths, consolidate (async, daily)
+  └── skill_discover.sh   → detect tech stack + generate skill commands (async, weekly)
 
 Every Message
   └── recall.sh           → inject relevant memories into Claude's context
@@ -369,6 +384,67 @@ When any subagent spawns, the `SubagentStart` hook queries cortex for memories r
 
 ---
 
+## Auto-Skill Discovery
+
+cortex automatically detects your project's tech stack and generates **slash-command skill files** (`.md`) with framework-specific best practices. Two paths:
+
+### Automatic (SessionStart, background)
+
+On every session start, `skill_discover.sh` runs asynchronously:
+
+1. **Detect** — `skill_detect.py` scans for project markers (`package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, etc.) and identifies 50+ frameworks across Node.js, Python, Go, Rust, Ruby, Java, and infrastructure tools
+2. **Check** — skips if skills already exist for detected frameworks, or if cooldown hasn't expired (weekly per project)
+3. **Generate** — calls `claude -p --model sonnet` to produce skill definitions with framework best practices
+4. **Write** — `skill_create.py` writes `.md` command files to `.claude/commands/` (project) or `~/.claude/commands/` (global)
+5. **Track** — stores discovery record in cortex to avoid regeneration
+
+```
+Session starts in a FastAPI + SQLAlchemy project
+  → skill_detect.py: "fastapi, sqlalchemy detected"
+  → cooldown check: first time this week ✓
+  → existing skills check: no fastapi-* commands found ✓
+  → claude -p generates: fastapi-endpoint.md, fastapi-test.md, fastapi-model.md
+  → skill_create.py writes to .claude/commands/
+  → /fastapi-endpoint, /fastapi-test, /fastapi-model now available
+```
+
+### Manual (`/cortex discover`)
+
+For deeper, web-researched skills:
+
+```
+/cortex discover
+```
+
+Unlike the automatic path (which uses LLM knowledge only), the manual command uses **WebSearch** to research current best practices online and reads your actual project code for project-specific conventions. Use this for:
+- Newer or less common frameworks
+- More detailed, up-to-date skills
+- Bypassing the weekly cooldown
+
+### Supported Frameworks
+
+| Ecosystem | Frameworks |
+|---|---|
+| **Node.js** | Next.js, React, Vue, Angular, Express, Svelte, Nuxt, Astro, Remix, NestJS, Gatsby, Prisma, Drizzle, tRPC, Playwright, Jest, Vitest, Cypress |
+| **Python** | FastAPI, Django, Flask, Celery, SQLAlchemy, Pydantic, Pandas, PyTorch, TensorFlow, Streamlit, Gradio, LangChain, Dask, Scrapy, Pytest |
+| **Go** | Gin, Fiber, Echo, Gorilla Mux, GORM, pgx, Cobra, gRPC |
+| **Rust** | Actix, Axum, Rocket, Tokio, Serde, Diesel, SQLx, Clap, Tonic |
+| **Ruby** | Rails, Sinatra, RSpec, Sidekiq |
+| **Java** | Spring Boot, Quarkus, Micronaut |
+| **Infra** | Docker, Docker Compose, Kubernetes, Helm, Terraform, GitHub Actions, GitLab CI, Ansible, Serverless, Vercel, Netlify, Fly.io |
+
+### Safety Limits
+
+| Limit | Value |
+|---|---|
+| Max project skills | 10 |
+| Max global skills | 10 |
+| Skills per discovery run | 5 |
+| Cooldown | Weekly per project (automatic), none (manual) |
+| Overwrite protection | Never overwrites existing skill files |
+
+---
+
 ## Hook Reference
 
 | Hook Event | Script | Sync/Async | What It Does |
@@ -382,6 +458,7 @@ When any subagent spawns, the `SubagentStart` hook queries cortex for memories r
 | `SessionStart` | `cleanup.sh` | Async | Prune stale data |
 | `SessionStart` | `agent_bootstrap.sh` | Async | Bootstrap agents from cortex (daily) |
 | `SessionStart` | `memory_hygiene.sh` | Async | Dedup, path validation, consolidation (daily) |
+| `SessionStart` | `skill_discover.sh` | Async | Auto-detect tech stack + generate skill commands (weekly) |
 | `SessionEnd` | `session_end_cleanup.sh` | Sync | Save session summary + cleanup |
 | `Stop` | `learn.sh` | Sync | Prompt Claude to save learnings |
 | `Stop` | `fleet_eval_stop.sh` | Sync | Lightweight fleet health check |
@@ -484,6 +561,7 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 | `/cortex delete <id>` | Delete a memory (archived to audit log) |
 | `/cortex update <id>` | Update a memory |
 | `/cortex agents` | Fleet health dashboard |
+| `/cortex discover` | Auto-detect tech stack + generate skill commands with web research |
 | `/cortex learn` | Review session and extract learnings to memory |
 
 ---
@@ -512,6 +590,7 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │   ├── agent_bootstrap.sh         # SessionStart: create agents from cortex knowledge
 │   ├── memory_hygiene.sh          # SessionStart: dedup, validate, consolidate
 │   ├── cleanup.sh                 # SessionStart: prune stale data
+│   ├── skill_discover.sh          # SessionStart: auto-detect tech stack + generate skills
 │   ├── learn.sh                   # Stop: prompt to save learnings
 │   ├── fleet_eval_stop.sh         # Stop: lightweight fleet health check
 │   ├── session_end_cleanup.sh     # SessionEnd: save summary + cleanup
@@ -524,7 +603,8 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │   ├── test.sh                    # Test suite
 │   ├── config/
 │   │   ├── CLAUDE.md              # Global behavioral rules → ~/.claude/CLAUDE.md
-│   │   └── cortex-memory.md       # Memory rules → ~/.claude/rules/cortex-memory.md
+│   │   ├── cortex-memory.md       # Memory rules → ~/.claude/rules/cortex-memory.md
+│   │   └── skill-discovery.md     # Skill discovery rules → ~/.claude/rules/skill-discovery.md
 │   ├── .retired/                  # Retired agents (outside agents/ to avoid Claude discovery)
 │   └── lib/
 │       ├── parse_transcript.py    # Transcript JSONL parser
@@ -535,7 +615,9 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │       ├── fleet_eval.py          # Agent evaluation, update, retire
 │       ├── collect_agents.py      # Agent inventory collector
 │       ├── collect_usage.py       # Usage ledger reader
-│       └── collect_memories.py    # ChromaDB memory reader
+│       ├── collect_memories.py    # ChromaDB memory reader
+│       ├── skill_detect.py        # Tech stack detector (50+ frameworks)
+│       └── skill_create.py        # Skill .md file writer with safety caps
 ├── cortex-db/              # ChromaDB persistent storage
 ├── agent-usage.jsonl              # Agent spawn ledger
 ├── .cortex_activity                 # Live activity indicator
@@ -569,7 +651,10 @@ Project-level agents live at `<project>/.claude/agents/*.md` with `memory: proje
 | **Semantic dedup** | 0.55 threshold for agents, 0.15 for memories, 0.35 for hygiene merges |
 | **Backup before update** | Timestamped `.bak` files before agent overwrites |
 | **Soft retire** | Agents moved to cortex `.retired/` (outside `agents/` to avoid Claude Code discovery) |
+| **Skill hard caps** | Max 10 project + 10 global skills, 5 per discovery run |
+| **Skill overwrite protection** | Never overwrites existing skill files |
 | **Daily cooldowns** | Bootstrap + hygiene run max once per project per day |
+| **Weekly cooldowns** | Skill discovery runs max once per project per week |
 | **Operation logging** | Every cortex tool call logged via PreToolUse hook |
 | **Auto project tagging** | PreToolUse enriches memory_store with project from cwd |
 
