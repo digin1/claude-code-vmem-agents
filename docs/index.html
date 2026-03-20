@@ -151,13 +151,15 @@
     }
     .flow {
       background: var(--card); border: 1px solid var(--border);
-      border-radius: 14px; padding: 2rem; text-align: center;
+      border-radius: 14px; padding: 2rem 2.5rem; text-align: left;
       font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
-      line-height: 1.9; color: var(--muted);
+      line-height: 1.9; color: var(--muted); overflow-x: auto;
+      max-width: 700px; margin: 0 auto;
     }
     .flow .step { color: var(--text); font-weight: 600; }
     .flow .arrow { color: var(--accent); }
     .flow .new { color: var(--success); font-weight: 600; }
+    .flow .phase { display: block; margin-top: 0.75rem; }
     .safety-grid {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 1rem;
@@ -261,32 +263,32 @@
 
     <div class="section">
       <h2>Full Session Lifecycle</h2>
-      <div class="flow">
-        <span class="step">Session Start</span><br>
-        <span class="arrow">├──</span> <span class="new">cleanup.sh</span> prune stale data<br>
-        <span class="arrow">├──</span> <span class="new">agent_bootstrap.sh</span> create agents from vmem (daily)<br>
-        <span class="arrow">└──</span> <span class="new">memory_hygiene.sh</span> dedup + consolidate (daily)<br><br>
+      <div class="flow"><pre style="background:transparent;border:none;color:inherit;padding:0;margin:0;font-size:inherit;line-height:inherit;">
+<span class="step">Session Start</span>
+  <span class="arrow">├──</span> <span class="new">cleanup.sh</span>          prune stale data
+  <span class="arrow">├──</span> <span class="new">agent_bootstrap.sh</span>  create agents from vmem (daily)
+  <span class="arrow">└──</span> <span class="new">memory_hygiene.sh</span>   dedup + consolidate (daily)
 
-        <span class="step">Every Message</span><br>
-        <span class="arrow">└──</span> <span class="new">recall.sh</span> inject memories (first msg: full project load)<br><br>
+<span class="step">Every Message</span>
+  <span class="arrow">└──</span> <span class="new">recall.sh</span>           inject memories (first msg: full project load)
 
-        <span class="step">Agent Spawned</span><br>
-        <span class="arrow">├──</span> <span class="new">agent_context_inject.sh</span> inject domain memories<br>
-        <span class="arrow">└──</span> <span class="new">agent_track.sh</span> log to usage ledger<br><br>
+<span class="step">Agent Spawned</span>
+  <span class="arrow">├──</span> <span class="new">agent_context_inject.sh</span>  inject domain memories
+  <span class="arrow">└──</span> <span class="new">agent_track.sh</span>           log to usage ledger
 
-        <span class="step">Context Compressed</span><br>
-        <span class="arrow">├──</span> <span class="new">compact_save.sh</span> extract memories + fleet management<br>
-        <span class="arrow">└──</span> <span class="new">post_compact_save.sh</span> extract from compressed summary<br><br>
+<span class="step">Context Compressed</span>
+  <span class="arrow">├──</span> <span class="new">compact_save.sh</span>      extract memories + fleet management
+  <span class="arrow">└──</span> <span class="new">post_compact_save.sh</span> extract from compressed summary
 
-        <span class="step">Every vmem Tool Call</span><br>
-        <span class="arrow">└──</span> <span class="new">vmem_pretool_enrich.sh</span> auto-tag project + audit<br><br>
+<span class="step">Every vmem Tool Call</span>
+  <span class="arrow">└──</span> <span class="new">vmem_pretool_enrich.sh</span>  auto-tag project + audit
 
-        <span class="step">Session Paused</span><br>
-        <span class="arrow">├──</span> <span class="new">learn.sh</span> prompt to save learnings<br>
-        <span class="arrow">└──</span> <span class="new">fleet_eval_stop.sh</span> fleet health check<br><br>
+<span class="step">Session Paused</span>
+  <span class="arrow">├──</span> <span class="new">learn.sh</span>             prompt to save learnings
+  <span class="arrow">└──</span> <span class="new">fleet_eval_stop.sh</span>   fleet health check
 
-        <span class="step">Session Ended</span><br>
-        <span class="arrow">└──</span> <span class="new">session_end_cleanup.sh</span> save summary + cleanup
+<span class="step">Session Ended</span>
+  <span class="arrow">└──</span> <span class="new">session_end_cleanup.sh</span>  save summary + cleanup</pre>
       </div>
     </div>
 
