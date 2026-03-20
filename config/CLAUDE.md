@@ -14,3 +14,15 @@ A persistent vector memory system (cortex) is available via MCP tools. It stores
 ## Specialized Agents
 
 Project-specific agents are available in `.claude/agents/`. When a task matches an agent's description, prefer using it over the general-purpose agent — specialized agents have domain knowledge and cortex memories injected automatically via the SubagentStart hook.
+
+## Auto-Skill Discovery
+
+Cortex automatically detects project tech stacks (FastAPI, Next.js, Flask, etc.) on session start and generates slash-command skill files (`.md`) in `.claude/commands/` (project) or `~/.claude/commands/` (global). These skills encode framework-specific best practices and are immediately available as `/command-name`.
+
+### Behavioral Rules
+
+- When starting work in a project, check if auto-discovered skills exist in `.claude/commands/`. If they do, mention them briefly so the user knows they're available (e.g., "This project has auto-discovered skills: `/flask-endpoint`, `/flask-test`").
+- When the user asks about available skills or commands, include auto-discovered ones.
+- If the user wants deeper, web-researched skills, suggest `/cortex discover` — it uses WebSearch for current best practices unlike the automatic path which uses LLM knowledge only.
+- Auto-discovered skills have a weekly cooldown per project. If the user wants to regenerate, `/cortex discover` bypasses cooldown.
+- The detection system covers: Node.js (Next.js, React, Vue, Express, etc.), Python (FastAPI, Django, Flask, etc.), Go, Rust, Ruby, Java, and infrastructure tools (Docker, K8s, Terraform, CI/CD).

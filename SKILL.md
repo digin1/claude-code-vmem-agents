@@ -1,8 +1,8 @@
 ---
 name: cortex
 description: Cortex — self-evolving memory and agent fleet — store, search, and manage memories with semantic search across all projects
-argument-hint: <store|search|list|delete|update|stats|agents> [args...]
-allowed-tools: "mcp__cortex__memory_store, mcp__cortex__memory_search, mcp__cortex__memory_list, mcp__cortex__memory_delete, mcp__cortex__memory_update, mcp__cortex__memory_stats, Bash, Read, Glob"
+argument-hint: <store|search|list|delete|update|stats|agents|discover|learn> [args...]
+allowed-tools: "mcp__cortex__memory_store, mcp__cortex__memory_search, mcp__cortex__memory_list, mcp__cortex__memory_delete, mcp__cortex__memory_update, mcp__cortex__memory_stats, Bash, Read, Glob, Write, WebSearch, WebFetch, Agent"
 ---
 
 # Cortex Memory System
@@ -31,6 +31,7 @@ Parse `$ARGUMENTS` to determine the command:
 - `/cortex update <id> <content>` → call `memory_update`
 - `/cortex stats` → call `memory_stats`
 - `/cortex agents` → run agent fleet dashboard (see below)
+- `/cortex discover` → auto-discover project skills with web research (see below)
 - `/cortex learn` → session review (see below)
 - `/cortex` with no args → call `memory_stats`
 
@@ -56,6 +57,70 @@ Then format the JSON output into a readable table showing:
 - Health indicator based on score + usage
 
 If the user says `/cortex agents <name>`, show detailed info for that specific agent (read its .md file, full eval history, usage timeline).
+
+## Skill Discovery (`/cortex discover`)
+
+When the user runs `/cortex discover`, perform a deep skill discovery for the current project. Unlike the automatic SessionStart hook (which uses LLM knowledge only), this manual command uses **web research** for more detailed, current results.
+
+### Steps:
+
+1. **Detect tech stack** — run the detector:
+```bash
+/usr/bin/python3 ~/.claude/skills/cortex/lib/skill_detect.py "$(pwd)" 2>/dev/null
+```
+
+2. **Show detected frameworks** — display what was found and ask the user if they want skills for all or specific ones.
+
+3. **Research online** — for each framework the user wants skills for:
+   - Use `WebSearch` to find current best practices, patterns, and conventions (e.g., "FastAPI best practices 2026", "Next.js app router patterns")
+   - Use `WebFetch` to read authoritative docs if needed
+   - Also `Read` the actual project code to understand the user's specific patterns and conventions
+
+4. **Generate skill files** — create `.md` command files that encode:
+   - Framework-specific best practices from web research
+   - Project-specific patterns from code analysis
+   - Testing approaches appropriate for the framework
+   - Common scaffolding patterns
+   - Each skill should have YAML frontmatter with `description:` and a detailed prompt body
+
+5. **Write files** — use `Write` to create `.md` files in:
+   - `.claude/commands/` (project-level, framework-specific skills)
+   - `~/.claude/commands/` (global, cross-project utility skills)
+   - Use kebab-case filenames matching the command name (e.g., `fastapi-endpoint.md` → `/fastapi-endpoint`)
+
+6. **Store in cortex** — record what was discovered using `memory_store`:
+   - `memory_id`: `skill_discovery_<project_name>`
+   - `memory_type`: `project`
+   - Content: list of created skills and frameworks covered
+
+7. **Report** — show the user what skills were created and how to use them (e.g., "Run `/fastapi-endpoint create user endpoint` to scaffold a new endpoint").
+
+### Quality guidelines for generated skills:
+- `description:` must be clear and actionable (shown in command palette)
+- Body must contain SPECIFIC instructions, not generic advice
+- Include framework conventions, file structure patterns, testing idioms
+- Use `$ARGUMENTS` to accept user input
+- Keep each skill focused on ONE task (scaffold, test, debug, deploy)
+- Max 5-7 skills per framework — pick the most useful ones
+
+### Example skill file (for reference):
+```markdown
+---
+description: Scaffold a new FastAPI endpoint with Pydantic models and tests
+---
+
+Create a new FastAPI endpoint based on the user's description: $ARGUMENTS
+
+Follow these conventions:
+1. Use async def for route handlers
+2. Define Pydantic models for request/response in a models file
+3. Use Depends() for shared dependencies (db, auth)
+4. Add proper status codes (201 create, 404 not found, 422 validation)
+5. Include OpenAPI metadata: summary, description, response_model
+6. Add the route to the appropriate router
+7. Write tests using TestClient covering success + error paths
+8. Follow the existing project structure and naming conventions
+```
 
 ## Session Review (`/cortex learn`)
 
