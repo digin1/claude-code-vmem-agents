@@ -76,7 +76,7 @@ ChromaDB will also install `onnxruntime` (for embeddings) and `numpy`. No GPU re
 ```bash
 python3 -c "
 import chromadb
-client = chromadb.PersistentClient(path='$HOME/.claude/vector-memory-db')
+client = chromadb.PersistentClient(path='$HOME/.claude/cortex-db')
 col = client.get_or_create_collection('claude_memories')
 print(f'Database initialized: {col.count()} memories')
 "
@@ -89,7 +89,7 @@ Add to your `~/.claude/.mcp.json` (create if it doesn't exist):
 ```json
 {
   "mcpServers": {
-    "vector-memory": {
+    "cortex": {
       "type": "stdio",
       "command": "python3",
       "args": ["-W", "ignore", "/home/YOUR_USERNAME/.claude/skills/cortex/mcp_server.py"]
@@ -111,12 +111,12 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
 {
   "permissions": {
     "allow": [
-      "mcp__vector-memory__memory_store",
-      "mcp__vector-memory__memory_search",
-      "mcp__vector-memory__memory_list",
-      "mcp__vector-memory__memory_delete",
-      "mcp__vector-memory__memory_update",
-      "mcp__vector-memory__memory_stats"
+      "mcp__cortex__memory_store",
+      "mcp__cortex__memory_search",
+      "mcp__cortex__memory_list",
+      "mcp__cortex__memory_delete",
+      "mcp__cortex__memory_update",
+      "mcp__cortex__memory_stats"
     ]
   },
   "statusLine": {
@@ -138,7 +138,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
     ],
     "PreToolUse": [
       {
-        "matcher": "mcp__vector-memory",
+        "matcher": "mcp__cortex",
         "hooks": [
           {
             "type": "command",
@@ -514,7 +514,7 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │       ├── collect_agents.py      # Agent inventory collector
 │       ├── collect_usage.py       # Usage ledger reader
 │       └── collect_memories.py    # ChromaDB memory reader
-├── vector-memory-db/              # ChromaDB persistent storage
+├── cortex-db/              # ChromaDB persistent storage
 ├── agent-usage.jsonl              # Agent spawn ledger
 ├── .cortex_activity                 # Live activity indicator
 ├── .cortex_audit.jsonl              # Audit trail for all memory operations

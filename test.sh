@@ -271,7 +271,7 @@ if [ $CLEANUP_RC -eq 0 ]; then
         # So empty output with rc=0 is technically valid but suboptimal
         if [ -z "$CLEANUP_OUT" ]; then
             # Check if DB exists — if no DB, the except block catches and outputs nothing
-            if [ -d "$HOME/.claude/vector-memory-db" ]; then
+            if [ -d "$HOME/.claude/cortex-db" ]; then
                 fail "cleanup.sh — output" "no output despite DB existing"
             else
                 pass "cleanup.sh — exits cleanly (no DB, silent ok)"
@@ -381,7 +381,7 @@ os.environ['ONNXRUNTIME_DISABLE_TELEMETRY'] = '1'
 os.environ['ORT_LOG_LEVEL'] = 'ERROR'
 try:
     import chromadb
-    client = chromadb.PersistentClient(path=os.path.expanduser('~/.claude/vector-memory-db'))
+    client = chromadb.PersistentClient(path=os.path.expanduser('~/.claude/cortex-db'))
     col = client.get_or_create_collection('claude_memories')
     col.delete(ids=['cortex-test-memory-001'])
 except: pass

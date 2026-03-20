@@ -1,7 +1,7 @@
 #!/bin/bash
 # Status line for vector memory — multi-line, clear labels, visual indicators
 
-DB_PATH="$HOME/.claude/vector-memory-db"
+DB_PATH="$HOME/.claude/cortex-db"
 ACTIVITY_FILE="$HOME/.claude/.cortex_activity"
 OPS_LOG="$HOME/.claude/.cortex_ops_log.jsonl"
 SESSIONS_LOG="$HOME/.claude/.cortex_sessions.jsonl"
@@ -110,7 +110,7 @@ try:
         import chromadb
     finally:
         os.dup2(_fd, 2); os.close(_fd)
-    client = chromadb.PersistentClient(path=os.path.expanduser('~/.claude/vector-memory-db'))
+    client = chromadb.PersistentClient(path=os.path.expanduser('~/.claude/cortex-db'))
     col = client.get_or_create_collection('claude_memories')
     data = col.get(where={'type': 'agent_eval'})
     latest = {}

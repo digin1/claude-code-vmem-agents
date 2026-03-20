@@ -37,7 +37,7 @@ finally:
     os.dup2(_fd, 2)
     os.close(_fd)
 
-DB_PATH = os.path.expanduser("~/.claude/vector-memory-db")
+DB_PATH = os.path.expanduser("~/.claude/cortex-db")
 RECALL_LOG = os.path.expanduser("~/.claude/.cortex_recall_log")
 ACTIVITY_FILE = os.path.expanduser("~/.claude/.cortex_activity")
 AUDIT_LOG = os.path.expanduser("~/.claude/.cortex_audit.jsonl")

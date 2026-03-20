@@ -25,7 +25,7 @@ finally:
     os.dup2(_fd, 2)
     os.close(_fd)
 
-DB_PATH = os.path.expanduser("~/.claude/vector-memory-db")
+DB_PATH = os.path.expanduser("~/.claude/cortex-db")
 LEDGER_PATH = os.path.expanduser("~/.claude/agent-usage.jsonl")
 
 

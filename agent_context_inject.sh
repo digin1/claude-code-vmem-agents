@@ -21,7 +21,7 @@ try:
 finally:
     os.dup2(_fd, 2); os.close(_fd)
 
-DB_PATH = os.path.expanduser("~/.claude/vector-memory-db")
+DB_PATH = os.path.expanduser("~/.claude/cortex-db")
 
 raw = sys.argv[1] if len(sys.argv) > 1 else ""
 try:

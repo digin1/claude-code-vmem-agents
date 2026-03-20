@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MCP server for vector memory — always-on tools for Claude Code.
+"""Cortex MCP server — always-on memory tools for Claude Code.
 
 Exposes memory_store, memory_search, memory_list, memory_delete, memory_stats
 as native Claude Code tools via the MCP protocol (stdio transport).
@@ -35,13 +35,13 @@ finally:
     os.close(_stderr_fd)
 from mcp.server.fastmcp import FastMCP
 
-DB_PATH = str(Path.home() / ".claude" / "vector-memory-db")
+DB_PATH = str(Path.home() / ".claude" / "cortex-db")
 AUDIT_LOG = str(Path.home() / ".claude" / ".cortex_audit.jsonl")
 
 MAX_CONTENT_LENGTH = 5000
 MAX_TOTAL_MEMORIES = 200
 
-mcp = FastMCP("vector-memory", log_level="ERROR")
+mcp = FastMCP("cortex", log_level="ERROR")
 
 
 def get_collection():

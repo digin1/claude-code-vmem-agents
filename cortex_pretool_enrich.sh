@@ -20,11 +20,11 @@ tool_name = d.get("tool_name", "")
 tool_input = d.get("tool_input", {})
 cwd = d.get("cwd", "") or os.getcwd()
 
-if not tool_name.startswith("mcp__vector-memory__"):
+if not tool_name.startswith("mcp__cortex__"):
     sys.exit(0)
 
 # Extract the specific tool (memory_store, memory_search, etc.)
-tool_short = tool_name.replace("mcp__vector-memory__", "")
+tool_short = tool_name.replace("mcp__cortex__", "")
 
 # ================================================================
 # Audit: log every cortex operation

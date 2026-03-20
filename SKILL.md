@@ -2,14 +2,14 @@
 name: cortex
 description: Cortex — self-evolving memory and agent fleet — store, search, and manage memories with semantic search across all projects
 argument-hint: <store|search|list|delete|update|stats|agents> [args...]
-allowed-tools: "mcp__vector-memory__memory_store, mcp__vector-memory__memory_search, mcp__vector-memory__memory_list, mcp__vector-memory__memory_delete, mcp__vector-memory__memory_update, mcp__vector-memory__memory_stats, Bash, Read, Glob"
+allowed-tools: "mcp__cortex__memory_store, mcp__cortex__memory_search, mcp__cortex__memory_list, mcp__cortex__memory_delete, mcp__cortex__memory_update, mcp__cortex__memory_stats, Bash, Read, Glob"
 ---
 
-# Vector Memory Database
+# Cortex Memory System
 
 You have access to a persistent vector memory database (ChromaDB) via MCP tools. This memory is **global** — shared across all projects.
 
-**IMPORTANT: Always use the MCP tools (mcp__vector-memory__memory_store, etc.) — NEVER call memory_db.py via Bash.** The MCP tools provide clean CLI output with spinners and status messages.
+**IMPORTANT: Always use the MCP tools (mcp__cortex__memory_store, etc.) — NEVER call memory_db.py via Bash.** The MCP tools provide clean CLI output with spinners and status messages.
 
 ## MCP Tools Available
 

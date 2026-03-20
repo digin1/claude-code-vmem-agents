@@ -13,7 +13,7 @@ warnings.filterwarnings("ignore")
 os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
 os.environ["ORT_LOG_LEVEL"] = "ERROR"
 
-DB_PATH = os.path.expanduser("~/.claude/vector-memory-db")
+DB_PATH = os.path.expanduser("~/.claude/cortex-db")
 EVAL_MAX_AGE_DAYS = 30
 COMPACT_MAX_AGE_DAYS = 60
 DUPLICATE_THRESHOLD = 0.1  # cosine distance below this = near-duplicate

@@ -6,7 +6,7 @@ import warnings
 warnings.filterwarnings("ignore")
 os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
 
-DB_PATH = os.path.expanduser("~/.claude/vector-memory-db")
+DB_PATH = os.path.expanduser("~/.claude/cortex-db")
 
 
 def collect_memories():

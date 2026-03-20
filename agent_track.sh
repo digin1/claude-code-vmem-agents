@@ -59,7 +59,7 @@ if description:
             os.dup2(_fd, 2)
             os.close(_fd)
 
-        DB_PATH = os.path.expanduser('~/.claude/vector-memory-db')
+        DB_PATH = os.path.expanduser('~/.claude/cortex-db')
         client = chromadb.PersistentClient(path=DB_PATH)
         col = client.get_or_create_collection('claude_memories')
         if col.count() > 0:

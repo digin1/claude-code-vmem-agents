@@ -15,7 +15,7 @@ os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
 os.environ["ORT_LOG_LEVEL"] = "ERROR"
 
 LEDGER = os.path.expanduser("~/.claude/agent-usage.jsonl")
-DB_PATH = os.path.expanduser("~/.claude/vector-memory-db")
+DB_PATH = os.path.expanduser("~/.claude/cortex-db")
 TODAY = datetime.now().strftime("%Y-%m-%d")
 SEVEN_DAYS_AGO = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%dT00:00:00")
 

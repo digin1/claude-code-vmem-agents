@@ -2,7 +2,7 @@
 """Vector memory database CLI for Claude Code.
 
 Stores memories in ChromaDB with semantic search capability.
-Data persists at ~/.claude/vector-memory-db/
+Data persists at ~/.claude/cortex-db/
 """
 
 import argparse
@@ -30,7 +30,7 @@ finally:
     os.dup2(_stderr_fd, 2)
     os.close(_stderr_fd)
 
-DB_PATH = str(Path.home() / ".claude" / "vector-memory-db")
+DB_PATH = str(Path.home() / ".claude" / "cortex-db")
 
 
 def get_collection():
