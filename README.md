@@ -262,7 +262,22 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
 
 </details>
 
-### Step 6: Verify Installation
+### Step 6: Install Global Behavioral Rules
+
+These files teach Claude to **always search cortex before saying "I don't remember"** and to proactively store useful memories:
+
+```bash
+# Global CLAUDE.md — loaded into every session, every project
+cp ~/.claude/skills/cortex/config/CLAUDE.md ~/.claude/CLAUDE.md
+
+# Global rules — loaded on-demand for cortex-related behavior
+mkdir -p ~/.claude/rules
+cp ~/.claude/skills/cortex/config/cortex-memory.md ~/.claude/rules/cortex-memory.md
+```
+
+> **Why?** Without these, Claude may not search cortex when you ask "do you remember X" — the recall hook injects context automatically, but if it misses something, Claude needs to know it should search manually. These files close that gap.
+
+### Step 7: Verify Installation
 
 ```bash
 # Run the test suite
@@ -327,10 +342,12 @@ On the first message of every session, cortex detects your project from `cwd` an
 | User profile | Always | Who you are, how you work |
 | Feedback | Always (all projects) | Cross-project rules and preferences |
 | Project context | Matching project + global | Architecture, decisions, gotchas |
-| References | Matching project + global | File paths, commands, endpoints |
+| References | All (always included) | File paths, commands, endpoints |
 | Semantic matches | From your first prompt | Cross-project hits |
 
-Subsequent messages use targeted semantic search with a relaxed threshold for current-project memories.
+Subsequent messages use targeted semantic search with relaxed thresholds. "Remember" queries (containing keywords like "recall", "do you know", "last time") get **boosted thresholds** (0.75-0.85 vs 0.6-0.7) and more results (12 vs 8).
+
+First-message content uses **progressive disclosure** — summaries are truncated to 250 chars to save tokens. Claude can fetch full content via `mcp__cortex__memory_search` when needed.
 
 ### Silent Context Injection
 
@@ -505,6 +522,9 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │   ├── memory_db.py               # ChromaDB CLI wrapper
 │   ├── SKILL.md                   # Skill definition for /cortex
 │   ├── test.sh                    # Test suite
+│   ├── config/
+│   │   ├── CLAUDE.md              # Global behavioral rules → ~/.claude/CLAUDE.md
+│   │   └── cortex-memory.md       # Memory rules → ~/.claude/rules/cortex-memory.md
 │   └── lib/
 │       ├── parse_transcript.py    # Transcript JSONL parser
 │       ├── store_memories.py      # Memory storage with dedup
