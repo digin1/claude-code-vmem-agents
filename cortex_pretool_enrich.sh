@@ -13,7 +13,7 @@ OPS_LOG = os.path.expanduser("~/.claude/.cortex_ops_log.jsonl")
 raw = sys.argv[1] if len(sys.argv) > 1 else ""
 try:
     d = json.loads(raw)
-except:
+except Exception:
     sys.exit(0)
 
 tool_name = d.get("tool_name", "")

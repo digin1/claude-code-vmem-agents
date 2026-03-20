@@ -160,10 +160,7 @@ if first_msg:
 
     # Also do semantic search for cross-project hits the above missed
     # (e.g. user asks about glabheatmap while in grantlab-dockerswarm)
-    seen_ids = {all_data["ids"][i] for section in sections.values()
-                for _, doc, _ in section
-                for i in range(len(all_data["ids"]))
-                if all_data["documents"][i] == doc}
+    seen_ids = {mid for section in sections.values() for mid, _, _ in section}
 
     if len(user_prompt) >= 3:
         try:

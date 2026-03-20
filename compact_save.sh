@@ -7,12 +7,21 @@ INPUT=$(cat 2>/dev/null)
 LIB="$(dirname "$0")/lib"
 
 # Extract transcript_path and cwd from hook JSON input (no eval -- safe from injection)
-read -r TRANSCRIPT CWD < <(echo "$INPUT" | python3 -c "
+# Use null delimiter to handle paths with spaces
+TRANSCRIPT=$(echo "$INPUT" | python3 -c "
 import sys, json
 try:
     d = json.loads(sys.stdin.read())
-    print(d.get('transcript_path', ''), d.get('cwd', ''))
-except: print(' ')
+    print(d.get('transcript_path', ''), end='')
+except: pass
+" 2>/dev/null)
+
+CWD=$(echo "$INPUT" | python3 -c "
+import sys, json
+try:
+    d = json.loads(sys.stdin.read())
+    print(d.get('cwd', ''), end='')
+except: pass
 " 2>/dev/null)
 
 if [ -z "$TRANSCRIPT" ] || [ ! -f "$TRANSCRIPT" ]; then

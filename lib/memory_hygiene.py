@@ -269,15 +269,22 @@ def phase_recall_tracking(col, memories):
                 pass
 
     # Rotate recall log (keep last 7 days of entries)
+    # Use atomic write (temp file + rename) to avoid race with recall.sh appending
     try:
+        import tempfile
         cutoff = time.strftime("%Y-%m-%d", time.localtime(time.time() - 7 * 86400))
         kept_lines = []
         with open(RECALL_LOG) as f:
             for line in f:
                 if line[:10] >= cutoff:
                     kept_lines.append(line)
-        with open(RECALL_LOG, "w") as f:
-            f.writelines(kept_lines)
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(RECALL_LOG))
+        try:
+            with os.fdopen(tmp_fd, "w") as f:
+                f.writelines(kept_lines)
+            os.replace(tmp_path, RECALL_LOG)
+        except Exception:
+            os.unlink(tmp_path)
     except Exception:
         pass
 
@@ -306,8 +313,8 @@ def phase_consolidation(col, memories):
     consolidated = 0
 
     for (project, mtype), group_mems in groups.items():
-        if len(group_mems) < 4:
-            # Need 4+ to make consolidation worthwhile (merge into 1-2)
+        if len(group_mems) < 3:
+            # Need 3+ to make consolidation worthwhile
             continue
 
         # Find clusters within this group using nearest-neighbor

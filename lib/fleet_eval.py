@@ -83,14 +83,14 @@ def persist_evaluations(result, col, ts):
             col.upsert(
                 ids=[eval_id],
                 documents=[eval_content],
-                metadatas={
+                metadatas=[{
                     "type": "agent_eval",
                     "timestamp": ts,
                     "tags": f"agent,eval,{name}",
                     "agent_name": name,
                     "score": str(score),
                     "source": "compact_save.sh",
-                },
+                }],
             )
             print(
                 f"[cortex fleet] Eval {name}: {score}/5 (usage: {usage}) -- {notes}"
@@ -179,14 +179,14 @@ def retire_agents(result, cwd, col, ts):
                 col.upsert(
                     ids=[knowledge_id],
                     documents=[knowledge_content],
-                    metadatas={
+                    metadatas=[{
                         "type": "reference",
                         "timestamp": ts,
                         "tags": f"agent,retired,knowledge,{agent_name}",
                         "source": "agent_retire",
                         "original_agent": agent_name,
                         "retire_reason": reason[:200],
-                    },
+                    }],
                 )
                 print(
                     f"[cortex fleet] Preserved knowledge from '{agent_name}' before retiring"

@@ -17,14 +17,14 @@ if not raw:
 
 try:
     d = json.loads(raw)
-except:
+except Exception:
     sys.exit(0)
 
 # Extract agent info from tool input
 tool_input = d.get('tool_input', {})
 if isinstance(tool_input, str):
     try: tool_input = json.loads(tool_input)
-    except: tool_input = {}
+    except Exception: tool_input = {}
 
 agent_type = tool_input.get('subagent_type', 'general-purpose')
 description = tool_input.get('description', '')
@@ -43,7 +43,9 @@ ledger = os.path.expanduser('~/.claude/agent-usage.jsonl')
 try:
     with open(ledger, 'a') as f:
         f.write(json.dumps(entry) + '\n')
-except:
+        f.flush()
+        os.fsync(f.fileno())
+except Exception:
     pass
 
 # Search cortex for context relevant to what the agent just did

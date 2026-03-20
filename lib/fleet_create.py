@@ -147,12 +147,11 @@ def create_agents(raw, cwd):
     if not isinstance(agents, list):
         agents = []
 
-    # Set up ChromaDB for semantic dedup
-    col = None
+    # Set up ChromaDB for semantic dedup (flag only — is_semantically_duplicate creates its own client)
+    chromadb_available = False
     try:
         import chromadb
-
-        col = chromadb.PersistentClient(path=DB_PATH)
+        chromadb_available = True
     except Exception:
         pass
 
@@ -204,8 +203,8 @@ def create_agents(raw, cwd):
 
         # Semantic dedup: check if description is too similar to existing agents
         new_desc = extract_description(content)
-        if new_desc and is_semantically_duplicate(
-            new_desc, existing_descriptions, col
+        if new_desc and chromadb_available and is_semantically_duplicate(
+            new_desc, existing_descriptions, True
         ):
             print(
                 f"[cortex fleet] Skipped '{filename}': semantically similar agent already exists",
