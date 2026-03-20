@@ -1,0 +1,134 @@
+#!/bin/bash
+# PreCompact hook: uses claude -p to:
+# 1. Extract structured memories before context compression
+# 2. Auto-generate reusable Claude Code agents from recurring patterns
+
+INPUT=$(cat 2>/dev/null)
+LIB="$(dirname "$0")/lib"
+
+# Extract transcript_path and cwd from hook JSON input (no eval -- safe from injection)
+read -r TRANSCRIPT CWD < <(echo "$INPUT" | python3 -c "
+import sys, json
+try:
+    d = json.loads(sys.stdin.read())
+    print(d.get('transcript_path', ''), d.get('cwd', ''))
+except: print(' ')
+" 2>/dev/null)
+
+if [ -z "$TRANSCRIPT" ] || [ ! -f "$TRANSCRIPT" ]; then
+    echo "[vmem compact] No transcript available"; exit 0
+fi
+
+# Parse transcript into CONTEXT via lib module
+CONTEXT=$("$LIB/parse_transcript.py" "$TRANSCRIPT" 2>/dev/null)
+
+if [ -z "$CONTEXT" ] || [ ${#CONTEXT} -lt 50 ]; then
+    echo "[vmem compact] Not enough context to summarize"; exit 0
+fi
+
+# ============================================================
+# PHASE 1: Extract memories
+# ============================================================
+SUMMARY=$(echo "$CONTEXT" | claude -p "You are a memory extraction system. From this conversation excerpt, extract ONLY items worth remembering for future sessions. Output valid JSON array. Each item: {\"type\": \"feedback|project|reference\", \"id\": \"short_snake_id\", \"content\": \"one sentence\", \"tags\": \"comma,separated\"}.
+
+Rules:
+- feedback: user corrections, preferences, workflow rules
+- project: technical decisions, architecture choices, deployment notes, bug root causes
+- reference: file paths, URLs, credentials locations, service endpoints
+- Skip: routine work, code that's in git, things already obvious from the codebase
+- Max 5 items. If nothing worth remembering, return empty array: []
+- Content should be self-contained — understandable without this conversation" 2>/dev/null)
+
+if [ -n "$SUMMARY" ]; then
+    "$LIB/store_memories.py" "$SUMMARY"
+fi
+
+# ============================================================
+# PHASE 2a: Agent fleet creation
+# ============================================================
+EXISTING_AGENTS_JSON=$("$LIB/collect_agents.py" 2>/dev/null)
+MEMORIES=$("$LIB/collect_memories.py" 2>/dev/null)
+USAGE_STATS=$("$LIB/collect_usage.py" 2>/dev/null)
+
+EXISTING_NAMES=$(echo "$EXISTING_AGENTS_JSON" | python3 -c "
+import sys, json
+try:
+    agents = json.loads(sys.stdin.read())
+    print(', '.join(a['name'] for a in agents))
+except: print('none')
+" 2>/dev/null)
+
+CREATE_RESULT=$(echo "$CONTEXT
+
+---EXISTING AGENTS---
+$EXISTING_NAMES
+
+---AGENT USAGE---
+$USAGE_STATS
+
+---MEMORIES (includes retired agent knowledge)---
+$MEMORIES" | claude -p "You identify reusable workflow patterns from development sessions that should become Claude Code subagents.
+
+Create new agents when:
+- A workflow was repeated 3+ times (deploy, test, review pattern)
+- A domain-specific task required specialized knowledge
+- The user explicitly described a process that should be automated
+
+Existing agents: $EXISTING_NAMES
+Do NOT create agents that duplicate existing ones.
+
+IMPORTANT: Check the MEMORIES section for entries tagged 'retired,knowledge' — these contain system prompts from previously retired agents. If you are creating an agent in a similar domain, INCORPORATE that prior knowledge into the new agent's system prompt rather than starting from scratch.
+
+Output a JSON array of agents to create (0-5):
+[{\"scope\": \"project\" or \"user\", \"filename\": \"agent-name.md\", \"content\": \"full markdown with YAML frontmatter\"}]
+
+Agent file format: name: lowercase-with-hyphens, description: when Claude should use this agent (be specific), tools: only what's needed, model: opus for all agents, memory: project or user. System prompt: specific, actionable instructions based on actual patterns.
+
+If no new agents needed, return: []
+Output ONLY the JSON array, no markdown wrapping." 2>/dev/null)
+
+if [ -n "$CREATE_RESULT" ]; then
+    CREATED_COUNT=$("$LIB/fleet_create.py" "$CREATE_RESULT" "$CWD" 2>/dev/null)
+    if [ "$CREATED_COUNT" -gt 0 ] 2>/dev/null; then
+        echo "[vmem fleet] Created $CREATED_COUNT new agent(s)"
+    fi
+fi
+
+# ============================================================
+# PHASE 2b: Agent evaluation & reconciliation
+# ============================================================
+EVAL_RESULT=$(echo "---EXISTING AGENTS (full content)---
+$EXISTING_AGENTS_JSON
+
+---AGENT USAGE STATS---
+$USAGE_STATS
+
+---SESSION CONTEXT---
+$CONTEXT" | claude -p "You evaluate and reconcile an existing fleet of Claude Code subagents.
+
+For each agent, assess:
+1. **Relevance**: Is it still useful given the session context and usage stats?
+2. **Quality**: Are its description, tools, model, and system prompt accurate and complete?
+3. **Usage**: How often is it actually being spawned? (see usage stats)
+4. **Score**: 1-5 (1=retire, 2=needs major update, 3=minor tweaks, 4=good, 5=excellent)
+
+Then decide what to change:
+- UPDATE agents with stale/incomplete instructions (provide full new content)
+- RETIRE agents scoring 1 that have zero or near-zero usage
+- MERGE agents with overlapping responsibilities (retire one, update the other)
+
+Output a single JSON object:
+{\"evaluations\":[{\"name\":\"agent-name\",\"score\":4,\"usage_count\":12,\"notes\":\"brief assessment\"}],\"update\":[{\"path\":\"/full/path/to/agent.md\",\"reason\":\"why\",\"content\":\"full updated markdown\"}],\"retire\":[{\"path\":\"/full/path/to/agent.md\",\"reason\":\"why — include usage count\"}]}
+
+Rules:
+- Evaluate ALL existing agents (even if no changes needed)
+- Only update when meaningfully improved (not cosmetic)
+- Only retire truly obsolete agents with low/zero usage
+- All agents must use model: opus
+- If no changes needed: {\"evaluations\":[...],\"update\":[],\"retire\":[]}
+
+Output ONLY the JSON, no markdown wrapping." 2>/dev/null)
+
+if [ -n "$EVAL_RESULT" ]; then
+    "$LIB/fleet_eval.py" "$EVAL_RESULT" "$CWD"
+fi
