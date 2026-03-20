@@ -321,6 +321,14 @@ else:
         if mem_type == "agent_eval":
             continue
 
+        # Recall boost: frequently recalled memories get a distance discount (closer = better)
+        # This makes well-used memories surface more easily without ever penalising unused ones
+        recall_count = int(meta.get("recall_count", "0") or "0")
+        if recall_count >= 5:
+            dist *= 0.85   # 15% boost for heavily recalled memories
+        elif recall_count >= 2:
+            dist *= 0.92   # 8% boost for moderately recalled
+
         # Boosted thresholds for "remember" queries, relaxed for project matches
         if is_remember_query:
             threshold = 0.85 if mem_project in matched_projects else 0.75

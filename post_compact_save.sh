@@ -6,15 +6,21 @@
 INPUT=$(cat 2>/dev/null)
 LIB="$(dirname "$0")/lib"
 
-# Extract compact_summary and cwd from hook input
-read -r SUMMARY CWD < <(echo "$INPUT" | python3 -c "
+# Extract compact_summary and cwd from hook input — separate calls for space safety
+SUMMARY=$(echo "$INPUT" | python3 -c "
 import sys, json
 try:
     d = json.loads(sys.stdin.read())
-    summary = d.get('compact_summary', '') or ''
-    cwd = d.get('cwd', '')
-    print(summary[:3000], cwd)
-except: print(' ')
+    print((d.get('compact_summary', '') or '')[:3000], end='')
+except: pass
+" 2>/dev/null)
+
+CWD=$(echo "$INPUT" | python3 -c "
+import sys, json
+try:
+    d = json.loads(sys.stdin.read())
+    print(d.get('cwd', ''), end='')
+except: pass
 " 2>/dev/null)
 
 if [ -z "$SUMMARY" ] || [ ${#SUMMARY} -lt 50 ]; then
