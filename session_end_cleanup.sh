@@ -40,7 +40,7 @@ if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
 
         if [ -n "$CONTEXT" ] && [ ${#CONTEXT} -gt 100 ]; then
             # Store a one-line session summary
-            SUMMARY=$(echo "$CONTEXT" | claude -p --model haiku "Summarize this session in ONE sentence (max 100 words). Focus on what was accomplished, not the process. If nothing notable, output: SKIP" 2>/dev/null)
+            SUMMARY=$(echo "$CONTEXT" | claude -p --model haiku --mcp-config '{}' --strict-mcp-config "Summarize this session in ONE sentence (max 100 words). Focus on what was accomplished, not the process. If nothing notable, output: SKIP" 2>/dev/null)
 
             if [ -n "$SUMMARY" ] && [ "$SUMMARY" != "SKIP" ]; then
                 # Use python to safely JSON-encode the summary to avoid quote injection

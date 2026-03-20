@@ -168,7 +168,7 @@ fi
 # ================================================================
 # Phase 4: SINGLE call to haiku — propose agents
 # ================================================================
-CREATE_RESULT=$(cat <<PROMPT_EOF | claude -p --model haiku 2>/dev/null
+CREATE_RESULT=$(cat <<PROMPT_EOF | claude -p --model haiku --mcp-config '{}' --strict-mcp-config 2>/dev/null
 You are an agent architect for Claude Code. Analyze these accumulated vector memories and propose EXACTLY the right number of reusable subagents.
 
 === VMEM MEMORIES ===

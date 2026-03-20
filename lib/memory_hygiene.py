@@ -335,7 +335,7 @@ def phase_consolidation(col, memories):
 
             try:
                 result = subprocess.run(
-                    ["claude", "-p", "--model", "haiku"],
+                    ["claude", "-p", "--model", "haiku", "--mcp-config", "{}", "--strict-mcp-config"],
                     input=f"""Consolidate these related memories into 1 comprehensive memory.
 
 MEMORIES TO CONSOLIDATE:
