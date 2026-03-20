@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>claude-code-vmem-agents — Self-Evolving Memory & Auto-Generated Agents for Claude Code</title>
+  <meta name="description" content="The first Claude Code plugin where agents write their own agents. 9-hook lifecycle, persistent vector memory, automatic agent fleet management, memory hygiene, and MCP resources.">
+  <meta name="keywords" content="claude code, claude code plugin, claude code agents, claude code subagents, claude code memory, claude code hooks, persistent memory, vector memory, chromadb, auto agent generation, self-evolving agents, claude code skills, anthropic, claude ai, ai agents, ai memory, mcp server, mcp resources">
+  <meta name="author" content="Digin Dominic">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://digindominic.me/claude-code-vmem-agents/">
+
+  <meta property="og:title" content="claude-code-vmem-agents — Agents That Write Their Own Agents">
+  <meta property="og:description" content="Self-evolving vector memory + auto-generated subagents for Claude Code. 9 hook events, persistent agent memory, memory hygiene, MCP resources.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://digindominic.me/claude-code-vmem-agents/">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="claude-code-vmem-agents — Agents That Write Their Own Agents">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "claude-code-vmem-agents",
+    "alternateName": ["vmem-agents", "claude code memory plugin", "claude code auto agents"],
+    "description": "Self-evolving vector memory and auto-generated agents for Claude Code. 9-hook lifecycle covering session start to end, persistent agent memory, memory hygiene with dedup and consolidation, MCP resources, and automatic agent fleet management.",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Linux, macOS, Windows",
+    "programmingLanguage": ["Bash", "Python"],
+    "softwareRequirements": "Claude Code v2.1.9+, Python 3.8+, ChromaDB",
+    "author": { "@type": "Person", "name": "Digin Dominic", "url": "https://github.com/digin1" },
+    "codeRepository": "https://github.com/digin1/claude-code-vmem-agents",
+    "license": "https://opensource.org/licenses/MIT",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "featureList": [
+      "9 hook events covering full session lifecycle",
+      "Project-aware first-message context injection",
+      "Automatic agent creation from accumulated knowledge",
+      "Agent evaluation, update, and retirement lifecycle",
+      "Persistent agent memory across sessions",
+      "Memory hygiene: dedup, path validation, consolidation",
+      "MCP Resources for @memory:// references",
+      "PreToolUse enrichment: auto-tag project + audit trail",
+      "SubagentStart context injection into spawned agents",
+      "Multi-line status line with clear metrics",
+      "Safety: audit log, content limits, soft delete, hard caps"
+    ]
+  }
+  </script>
+
+  <style>
+    :root {
+      --bg: #0f0f1a;
+      --card: #1a1a2e;
+      --accent: #6366f1;
+      --accent2: #8b5cf6;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --border: #2d2d44;
+      --success: #10b981;
+      --warn: #f59e0b;
+    }
+    * { margin: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    .hero {
+      text-align: center;
+      padding: 4rem 1.5rem 3rem;
+      background: linear-gradient(180deg, #1a1a2e 0%, var(--bg) 100%);
+    }
+    .hero h1 {
+      font-size: 2.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2), #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.75rem;
+    }
+    .hero .tagline {
+      font-size: 1.25rem;
+      color: var(--muted);
+      max-width: 650px;
+      margin: 0 auto 1.5rem;
+    }
+    .hero .highlight { color: var(--accent); font-weight: 600; }
+    .badges { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; margin-bottom: 2rem; }
+    .badges img { height: 28px; }
+    .stats {
+      display: flex; gap: 2rem; justify-content: center; margin: 2rem 0;
+      flex-wrap: wrap;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat .num {
+      font-size: 2rem; font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .stat .label { font-size: 0.8rem; color: var(--muted); }
+    .cta-row { display: flex; gap: 1rem; justify-content: center; margin-top: 2rem; flex-wrap: wrap; }
+    .cta {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.75rem 2rem; border-radius: 10px; text-decoration: none;
+      font-weight: 600; font-size: 1rem; transition: transform 0.15s, box-shadow 0.2s;
+    }
+    .cta-primary { background: var(--accent); color: white; }
+    .cta-secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+    .cta:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(99,102,241,0.2); }
+    .container { max-width: 960px; margin: 0 auto; padding: 0 1.5rem; }
+    .features {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem; padding: 3rem 0;
+    }
+    .feature {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 1.5rem;
+    }
+    .feature .icon { font-size: 1.75rem; margin-bottom: 0.75rem; }
+    .feature h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .feature p { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+    .section { padding: 3rem 0; }
+    .section h2 {
+      font-size: 1.6rem; font-weight: 800; text-align: center;
+      margin-bottom: 2rem;
+    }
+    .hook-table { overflow-x: auto; }
+    table {
+      width: 100%; border-collapse: collapse; font-size: 0.82rem;
+      background: var(--card); border-radius: 12px; overflow: hidden;
+    }
+    th { background: #25254a; padding: 0.6rem 0.8rem; text-align: left; font-weight: 600; color: var(--accent); }
+    td { padding: 0.5rem 0.8rem; border-top: 1px solid var(--border); }
+    tr:hover td { background: rgba(99,102,241,0.05); }
+    .install-block {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.5rem; margin-bottom: 1.25rem;
+    }
+    .install-block h3 { font-size: 0.9rem; color: var(--accent); margin-bottom: 0.75rem; }
+    pre {
+      background: #0d0d1a; border: 1px solid var(--border);
+      border-radius: 8px; padding: 1rem; overflow-x: auto;
+      font-size: 0.82rem; line-height: 1.5; color: #a5b4fc;
+    }
+    .flow {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 2rem; text-align: center;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+      line-height: 1.9; color: var(--muted);
+    }
+    .flow .step { color: var(--text); font-weight: 600; }
+    .flow .arrow { color: var(--accent); }
+    .flow .new { color: var(--success); font-weight: 600; }
+    .safety-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    .safety-item {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1rem;
+    }
+    .safety-item h4 { font-size: 0.85rem; margin-bottom: 0.3rem; }
+    .safety-item p { font-size: 0.78rem; color: var(--muted); }
+    footer {
+      text-align: center; padding: 3rem 1.5rem; color: var(--muted);
+      font-size: 0.8rem; border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    @media (max-width: 600px) {
+      .hero h1 { font-size: 2rem; }
+      .features { grid-template-columns: 1fr; }
+      .stats { gap: 1rem; }
+    }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <div class="hero">
+    <div class="badges">
+      <img src="https://img.shields.io/badge/Claude_Code-Plugin-blueviolet?style=flat-square" alt="Claude Code">
+      <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT">
+      <img src="https://img.shields.io/badge/Python-3.8+-blue?style=flat-square&logo=python&logoColor=white" alt="Python">
+      <img src="https://img.shields.io/badge/ChromaDB-Vector_Store-orange?style=flat-square" alt="ChromaDB">
+      <img src="https://img.shields.io/badge/Hooks-9_events-blueviolet?style=flat-square" alt="9 Hooks">
+    </div>
+    <h1>claude-code-vmem-agents</h1>
+    <p class="tagline">
+      The first Claude Code plugin where <span class="highlight">agents write their own agents</span>.
+      Persistent vector memory, 9-hook lifecycle, and self-managing agent fleets.
+    </p>
+    <div class="stats">
+      <div class="stat"><div class="num">9</div><div class="label">Hook Events</div></div>
+      <div class="stat"><div class="num">12</div><div class="label">Hook Scripts</div></div>
+      <div class="stat"><div class="num">6</div><div class="label">MCP Tools</div></div>
+      <div class="stat"><div class="num">4</div><div class="label">MCP Resources</div></div>
+    </div>
+    <div class="cta-row">
+      <a class="cta cta-primary" href="https://github.com/digin1/claude-code-vmem-agents">View on GitHub</a>
+      <a class="cta cta-secondary" href="https://github.com/digin1/claude-code-vmem-agents#-installation">Installation Guide</a>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <div class="features">
+      <div class="feature">
+        <div class="icon">🧠</div>
+        <h3>Project-Aware Recall</h3>
+        <p>First message loads ALL project memories automatically. Subsequent messages use targeted semantic search with project boosting.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🤖</div>
+        <h3>Self-Managing Agents</h3>
+        <p>Agents are bootstrapped from vmem knowledge, evaluated on usage, updated with new insights, and retired when obsolete. Full lifecycle.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🧬</div>
+        <h3>Agent Context Injection</h3>
+        <p>When any subagent spawns, domain-relevant memories are injected via SubagentStart hook. Agents start with knowledge, not from scratch.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🧹</div>
+        <h3>Memory Hygiene</h3>
+        <p>Daily automated dedup, path validation, recall tracking, and consolidation. Designed for long-running projects &mdash; never deletes based on age.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🔗</div>
+        <h3>MCP Resources</h3>
+        <p>Reference memories inline with <code>@memory://project/name</code>. 4 resource endpoints for on-demand context loading.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🛡️</div>
+        <h3>Safety Guardrails</h3>
+        <p>Audit trail for all operations, soft-delete with backup, content size limits, agent hard caps, path traversal protection.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🏷️</div>
+        <h3>Auto Project Tagging</h3>
+        <p>PreToolUse hook detects project from working directory and auto-tags every memory_store call. No manual project scoping needed.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">📊</div>
+        <h3>Multi-Line Status</h3>
+        <p>Clear, readable status bar showing memory count, agent fleet, spawn stats, and live activity. No cryptic abbreviations.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">💾</div>
+        <h3>Persistent Agent Memory</h3>
+        <p>All agents have <code>memory: user</code> or <code>memory: project</code> scope. They accumulate knowledge across sessions in their own MEMORY.md files.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Full Session Lifecycle</h2>
+      <div class="flow">
+        <span class="step">Session Start</span><br>
+        <span class="arrow">├──</span> <span class="new">cleanup.sh</span> prune stale data<br>
+        <span class="arrow">├──</span> <span class="new">agent_bootstrap.sh</span> create agents from vmem (daily)<br>
+        <span class="arrow">└──</span> <span class="new">memory_hygiene.sh</span> dedup + consolidate (daily)<br><br>
+
+        <span class="step">Every Message</span><br>
+        <span class="arrow">└──</span> <span class="new">recall.sh</span> inject memories (first msg: full project load)<br><br>
+
+        <span class="step">Agent Spawned</span><br>
+        <span class="arrow">├──</span> <span class="new">agent_context_inject.sh</span> inject domain memories<br>
+        <span class="arrow">└──</span> <span class="new">agent_track.sh</span> log to usage ledger<br><br>
+
+        <span class="step">Context Compressed</span><br>
+        <span class="arrow">├──</span> <span class="new">compact_save.sh</span> extract memories + fleet management<br>
+        <span class="arrow">└──</span> <span class="new">post_compact_save.sh</span> extract from compressed summary<br><br>
+
+        <span class="step">Every vmem Tool Call</span><br>
+        <span class="arrow">└──</span> <span class="new">vmem_pretool_enrich.sh</span> auto-tag project + audit<br><br>
+
+        <span class="step">Session Paused</span><br>
+        <span class="arrow">├──</span> <span class="new">learn.sh</span> prompt to save learnings<br>
+        <span class="arrow">└──</span> <span class="new">fleet_eval_stop.sh</span> fleet health check<br><br>
+
+        <span class="step">Session Ended</span><br>
+        <span class="arrow">└──</span> <span class="new">session_end_cleanup.sh</span> save summary + cleanup
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Hook Coverage</h2>
+      <div class="hook-table">
+        <table>
+          <thead>
+            <tr><th>Hook Event</th><th>Script</th><th>What It Does</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>UserPromptSubmit</td><td>recall.sh</td><td>Project-aware memory injection into context</td></tr>
+            <tr><td>PreToolUse</td><td>vmem_pretool_enrich.sh</td><td>Auto-tag project + audit log for vmem ops</td></tr>
+            <tr><td>PostToolUse(Agent)</td><td>agent_track.sh</td><td>Track agent spawns in usage ledger</td></tr>
+            <tr><td>SubagentStart</td><td>agent_context_inject.sh</td><td>Inject domain memories into spawned agents</td></tr>
+            <tr><td>PreCompact</td><td>compact_save.sh</td><td>Extract memories + create/evaluate agents</td></tr>
+            <tr><td>PostCompact</td><td>post_compact_save.sh</td><td>Extract from compressed summary</td></tr>
+            <tr><td>SessionStart (x3)</td><td>cleanup + bootstrap + hygiene</td><td>Prune, create agents, dedup memories</td></tr>
+            <tr><td>SessionEnd</td><td>session_end_cleanup.sh</td><td>Save session summary + cleanup</td></tr>
+            <tr><td>Stop (x2)</td><td>learn + fleet_eval_stop</td><td>Save learnings + fleet health check</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Quick Install</h2>
+      <div class="install-block">
+        <h3>1. Clone & Install</h3>
+        <pre>git clone https://github.com/digin1/claude-code-vmem-agents.git ~/.claude/skills/vmem
+pip install chromadb</pre>
+      </div>
+      <div class="install-block">
+        <h3>2. Initialize Database</h3>
+        <pre>python3 -c "import chromadb; c=chromadb.PersistentClient(path='$HOME/.claude/vector-memory-db'); c.get_or_create_collection('claude_memories'); print('OK')"</pre>
+      </div>
+      <div class="install-block">
+        <h3>3. Configure Hooks</h3>
+        <p style="color: var(--muted); font-size: 0.85rem;">
+          Copy the hooks configuration from the
+          <a href="https://github.com/digin1/claude-code-vmem-agents#step-5-configure-hooks" style="color: var(--accent);">README</a>
+          into your <code>~/.claude/settings.json</code>.
+        </p>
+      </div>
+      <div class="install-block">
+        <h3>4. Restart Claude Code</h3>
+        <pre>🧠 39 memories (17 project, 15 feedback, 6 reference, 1 user) across 4 projects
+🤖 10 agents (5 project + 5 global) | 5 spawns today | health 4.2/5</pre>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Safety Guardrails</h2>
+      <div class="safety-grid">
+        <div class="safety-item">
+          <h4>Audit Trail</h4>
+          <p>Every store, update, and delete logged to .vmem_audit.jsonl with timestamps</p>
+        </div>
+        <div class="safety-item">
+          <h4>Soft Delete</h4>
+          <p>Deleted memory content archived to audit log before removal</p>
+        </div>
+        <div class="safety-item">
+          <h4>Content Limits</h4>
+          <p>Max 5000 chars per memory, 200 total memories, agent hard caps</p>
+        </div>
+        <div class="safety-item">
+          <h4>No Age Deletion</h4>
+          <p>Designed for long-running projects. Memories never removed for being old</p>
+        </div>
+        <div class="safety-item">
+          <h4>Path Protection</h4>
+          <p>os.path.realpath() validation + directory whitelisting on all agent ops</p>
+        </div>
+        <div class="safety-item">
+          <h4>Semantic Dedup</h4>
+          <p>0.55 for agents, 0.15 for memories, 0.35 for hygiene merges</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    Built by <a href="https://github.com/digin1">@digin1</a> &bull; <a href="https://github.com/digin1/claude-code-vmem-agents">GitHub</a> &bull; MIT License
+    <br><br>
+    <small>claude code plugin &bull; claude code agents &bull; claude code memory &bull; claude code hooks &bull; persistent vector memory &bull; chromadb &bull; auto agent generation &bull; mcp server &bull; mcp resources &bull; ai coding assistant &bull; anthropic claude</small>
+  </footer>
+
+</body>
+</html>
