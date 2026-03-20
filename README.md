@@ -467,6 +467,7 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 | `/cortex delete <id>` | Delete a memory (archived to audit log) |
 | `/cortex update <id>` | Update a memory |
 | `/cortex agents` | Fleet health dashboard |
+| `/cortex learn` | Review session and extract learnings to memory |
 
 ---
 

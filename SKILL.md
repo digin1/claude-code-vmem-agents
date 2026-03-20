@@ -31,6 +31,7 @@ Parse `$ARGUMENTS` to determine the command:
 - `/cortex update <id> <content>` → call `memory_update`
 - `/cortex stats` → call `memory_stats`
 - `/cortex agents` → run agent fleet dashboard (see below)
+- `/cortex learn` → session review (see below)
 - `/cortex` with no args → call `memory_stats`
 
 When storing, always:
@@ -55,3 +56,19 @@ Then format the JSON output into a readable table showing:
 - Health indicator based on score + usage
 
 If the user says `/cortex agents <name>`, show detailed info for that specific agent (read its .md file, full eval history, usage timeline).
+
+## Session Review (`/cortex learn`)
+
+When the user runs `/cortex learn`, review the current conversation and extract any learnings worth persisting. Look for:
+
+1. **Feedback** — corrections the user made, approaches they approved/rejected, preferences expressed
+2. **Project** — decisions, constraints, or context about ongoing work that isn't in the code
+3. **Reference** — external resources, deployment patterns, or lookup info discovered
+4. **User** — new info about the user's role, expertise, or working style
+
+For each finding:
+- Check if a similar memory already exists (use `memory_search`) — update rather than duplicate
+- Store with a descriptive `memory_id`, appropriate `memory_type`, and relevant `tags`
+- Include the project name if the learning is project-specific
+
+Report what you stored in a brief summary. If nothing new was learned, say so.
