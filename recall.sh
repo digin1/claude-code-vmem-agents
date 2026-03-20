@@ -112,6 +112,12 @@ def detect_projects(cwd):
 matched_projects = detect_projects(cwd)
 first_msg = is_first_message(transcript_path)
 
+# Detect "remember" intent globally — applies to both first and subsequent messages
+remember_keywords = ["remember", "recall", "do you know", "have you seen",
+                     "did we", "last time", "previously", "earlier session"]
+prompt_lower = user_prompt.lower()
+is_remember_query = any(kw in prompt_lower for kw in remember_keywords)
+
 
 # ================================================================
 # FIRST MESSAGE: Comprehensive project-aware context load
@@ -148,10 +154,9 @@ if first_msg:
             if mproject in matched_projects or mproject == "global" or mproject == "":
                 sections["project"].append((mid, doc, meta))
 
-        # REFERENCE: include if matches current project, is global, or untagged
+        # REFERENCE: always include — references are high-value and few in number
         elif mtype == "reference":
-            if mproject in matched_projects or mproject == "global" or mproject == "":
-                sections["reference"].append((mid, doc, meta))
+            sections["reference"].append((mid, doc, meta))
 
     # Also do semantic search for cross-project hits the above missed
     # (e.g. user asks about glabheatmap while in grantlab-dockerswarm)
@@ -162,16 +167,20 @@ if first_msg:
 
     if len(user_prompt) >= 3:
         try:
+            # More results and looser threshold for "remember" queries
+            sem_n = min(10 if is_remember_query else 5, col.count())
+            sem_threshold = 0.8 if is_remember_query else 0.65
+
             sem_results = col.query(
                 query_texts=[user_prompt[:400]],
-                n_results=min(5, col.count())
+                n_results=sem_n
             )
             cross_project = []
             for i in range(len(sem_results["ids"][0])):
                 mid = sem_results["ids"][0][i]
                 dist = sem_results["distances"][0][i] if sem_results.get("distances") else 1.0
                 meta = sem_results["metadatas"][0][i]
-                if mid not in seen_ids and dist < 0.5 and meta.get("type") != "agent_eval":
+                if mid not in seen_ids and dist < sem_threshold and meta.get("type") != "agent_eval":
                     cross_project.append((mid, sem_results["documents"][0][i], meta))
                     seen_ids.add(mid)
         except:
@@ -190,6 +199,10 @@ if first_msg:
         "reference": "References & Locations"
     }
 
+    # Progressive disclosure: truncate long memories to save tokens
+    # Full content available via mcp__cortex__memory_search when needed
+    SUMMARY_LIMIT = 250
+
     total = 0
     for section_key in ["user", "feedback", "project", "reference"]:
         items = sections[section_key]
@@ -204,7 +217,8 @@ if first_msg:
                 p = meta.get("project", "")
                 if p:
                     proj_tag = f" [{p}]"
-            lines.append(f"  {mid}{proj_tag}: {doc}")
+            summary = doc[:SUMMARY_LIMIT] + ("..." if len(doc) > SUMMARY_LIMIT else "")
+            lines.append(f"  {mid}{proj_tag}: {summary}")
 
     # Add cross-project semantic hits
     if cross_project:
@@ -213,9 +227,13 @@ if first_msg:
         for mid, doc, meta in cross_project:
             p = meta.get("project", "")
             proj_tag = f" [{p}]" if p else ""
-            lines.append(f"  {mid}{proj_tag}: {doc}")
+            summary = doc[:SUMMARY_LIMIT] + ("..." if len(doc) > SUMMARY_LIMIT else "")
+            lines.append(f"  {mid}{proj_tag}: {summary}")
 
     if total > 0:
+        # Progressive disclosure hint
+        lines.append(f"\n[cortex] Showing summaries ({SUMMARY_LIMIT} chars). Use mcp__cortex__memory_search for full content.")
+
         with open(ACTIVITY_FILE, "w") as af:
             af.write(f"loaded {total} (session start)")
 
@@ -287,9 +305,12 @@ else:
     if assistant_context:
         search_query = f"{user_prompt[:300]} {assistant_context[:200]}"
 
+    # More results and looser thresholds for explicit recall queries
+    n_results = min(12 if is_remember_query else 8, col.count())
+
     results = col.query(
         query_texts=[search_query],
-        n_results=min(8, col.count())
+        n_results=n_results
     )
 
     relevant = []
@@ -303,8 +324,11 @@ else:
         if mem_type == "agent_eval":
             continue
 
-        # Relaxed threshold for memories matching current project
-        threshold = 0.6 if mem_project in matched_projects else 0.5
+        # Boosted thresholds for "remember" queries, relaxed for project matches
+        if is_remember_query:
+            threshold = 0.85 if mem_project in matched_projects else 0.75
+        else:
+            threshold = 0.7 if mem_project in matched_projects else 0.6
 
         if dist < threshold:
             relevant.append({

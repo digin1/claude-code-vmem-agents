@@ -244,7 +244,7 @@ def memory_delete(memory_id: str) -> str:
 
 
 @mcp.tool()
-def memory_update(memory_id: str, content: str = "", memory_type: str = "", tags: str = "") -> str:
+def memory_update(memory_id: str, content: str = "", memory_type: str = "", tags: str = "", project: str = "") -> str:
     """Update an existing memory's content or metadata.
 
     Args:
@@ -252,6 +252,7 @@ def memory_update(memory_id: str, content: str = "", memory_type: str = "", tags
         content: New content (empty = keep existing, max 5000 chars)
         memory_type: New type (empty = keep existing)
         tags: New tags (empty = keep existing)
+        project: New project scope (empty = keep existing)
     """
     if content and len(content) > MAX_CONTENT_LENGTH:
         return json.dumps({
@@ -277,6 +278,8 @@ def memory_update(memory_id: str, content: str = "", memory_type: str = "", tags
         metadata["type"] = memory_type
     if tags:
         metadata["tags"] = tags
+    if project:
+        metadata["project"] = project
 
     doc = content if content else existing["documents"][0]
     collection.update(ids=[memory_id], documents=[doc], metadatas=[metadata])
