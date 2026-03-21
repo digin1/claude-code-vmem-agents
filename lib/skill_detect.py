@@ -120,46 +120,35 @@ def detect_python_frameworks(project_dir):
         r"\bplaywright\b": ("playwright-python", "Playwright (Python)"),
     }
 
-    # Collect all dependency text
+    # Collect all dependency text — check root and common subdirectories
     dep_text = ""
-    for fname in ["requirements.txt", "requirements-dev.txt",
-                   "requirements/base.txt", "requirements/dev.txt",
-                   "requirements/production.txt"]:
-        fpath = os.path.join(project_dir, fname)
-        if os.path.exists(fpath):
-            try:
-                with open(fpath) as f:
-                    dep_text += f.read().lower() + "\n"
-            except Exception:
-                pass
+    req_files = ["requirements.txt", "requirements-dev.txt",
+                 "requirements/base.txt", "requirements/dev.txt",
+                 "requirements/production.txt"]
+    # Subdirs where Python deps commonly live in multi-service/monorepo projects
+    subdirs = ["", "app", "src", "backend", "api", "server", "service", "services",
+               "web", "worker", "lib", "core"]
+    for subdir in subdirs:
+        for fname in req_files:
+            fpath = os.path.join(project_dir, subdir, fname) if subdir else os.path.join(project_dir, fname)
+            if os.path.exists(fpath):
+                try:
+                    with open(fpath) as f:
+                        dep_text += f.read().lower() + "\n"
+                except Exception:
+                    pass
 
-    # pyproject.toml
-    pyproject_path = os.path.join(project_dir, "pyproject.toml")
-    if os.path.exists(pyproject_path):
-        try:
-            with open(pyproject_path) as f:
-                dep_text += f.read().lower() + "\n"
-        except Exception:
-            pass
-
-    # setup.py / setup.cfg
-    for fname in ["setup.py", "setup.cfg"]:
-        fpath = os.path.join(project_dir, fname)
-        if os.path.exists(fpath):
-            try:
-                with open(fpath) as f:
-                    dep_text += f.read().lower() + "\n"
-            except Exception:
-                pass
-
-    # Pipfile
-    pipfile_path = os.path.join(project_dir, "Pipfile")
-    if os.path.exists(pipfile_path):
-        try:
-            with open(pipfile_path) as f:
-                dep_text += f.read().lower() + "\n"
-        except Exception:
-            pass
+    # pyproject.toml, setup.py, setup.cfg, Pipfile — check root and subdirs
+    for subdir in subdirs:
+        base = os.path.join(project_dir, subdir) if subdir else project_dir
+        for fname in ["pyproject.toml", "setup.py", "setup.cfg", "Pipfile"]:
+            fpath = os.path.join(base, fname)
+            if os.path.exists(fpath):
+                try:
+                    with open(fpath) as f:
+                        dep_text += f.read().lower() + "\n"
+                except Exception:
+                    pass
 
     if not dep_text:
         return []
@@ -285,6 +274,32 @@ def detect_infra_tools(project_dir):
         if os.path.exists(path):
             seen.add(fid)
             frameworks.append({"id": fid, "name": fname, "ecosystem": "infra"})
+
+    # Docker Swarm — detect deploy: sections with placement/replicas in compose files
+    if "docker-compose" in seen:
+        for compose_name in ["docker-compose.yml", "docker-compose.yaml",
+                             "compose.yml", "compose.yaml"]:
+            compose_path = os.path.join(project_dir, compose_name)
+            if os.path.exists(compose_path):
+                try:
+                    with open(compose_path) as f:
+                        compose_content = f.read()
+                    # Swarm markers: deploy with placement constraints, mode, replicas
+                    swarm_patterns = [
+                        r"deploy:\s*\n\s+placement:",
+                        r"deploy:\s*\n\s+mode:\s*(global|replicated)",
+                        r"node\.role\s*==",
+                        r"node\.labels\.",
+                    ]
+                    if any(re.search(p, compose_content) for p in swarm_patterns):
+                        frameworks.append({
+                            "id": "docker-swarm", "name": "Docker Swarm",
+                            "ecosystem": "infra"
+                        })
+                        seen.add("docker-swarm")
+                        break
+                except Exception:
+                    pass
 
     # Terraform (.tf files)
     try:
