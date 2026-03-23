@@ -6,7 +6,8 @@ NEVER auto-deletes based on age. Only merges duplicates and consolidates
 related memories to keep the database clean and useful.
 
 Phases:
-  1. Dedup — merge near-duplicate memories (no LLM)
+  1. Dedup — merge near-duplicate memories (embedding distance < 0.35)
+  1b. LLM dedup — Haiku judges borderline pairs (0.35-0.55) as true dupes
   2. Path validation — flag memories with broken file paths (no LLM)
   3. Recall tracking — update last_recalled from recall log (no LLM)
   4. Consolidation — merge 3+ related memories per project (haiku)
@@ -153,6 +154,161 @@ def phase_dedup(col, memories):
                     print(f"[hygiene] Merge failed: {e}")
 
                 break  # One merge per memory per pass
+
+    return merged
+
+
+# ================================================================
+# Phase 1b: LLM Semantic Dedup (borderline pairs)
+# ================================================================
+def phase_llm_dedup(col, memories):
+    """Use Haiku to judge borderline-similar memory pairs (dist 0.35-0.55).
+
+    Embedding distance catches near-identical wording but misses memories
+    that say the same thing in different words. Haiku can reason about
+    whether two memories are truly redundant or complementary.
+
+    Returns count of memories merged.
+    """
+    if len(memories) < 2:
+        return 0
+
+    merged = 0
+    deleted_ids = set()
+    # Collect candidate pairs first, then batch-judge with Haiku
+    candidates = []
+
+    for mem in memories:
+        if mem["id"] in deleted_ids:
+            continue
+        mtype = mem["metadata"].get("type", "general")
+        if mtype == "agent_eval":
+            continue
+
+        try:
+            results = col.query(
+                query_texts=[mem["content"]],
+                n_results=min(5, col.count()),
+            )
+        except Exception:
+            continue
+
+        for i in range(len(results["ids"][0])):
+            nid = results["ids"][0][i]
+            if nid == mem["id"] or nid in deleted_ids:
+                continue
+
+            dist = results["distances"][0][i] if results.get("distances") else 1.0
+            ntype = results["metadatas"][0][i].get("type", "general")
+
+            # Only same-type, borderline range (0.35-0.55)
+            if ntype != mtype or dist < 0.35 or dist >= 0.55:
+                continue
+
+            # Avoid duplicate pairs (A,B) and (B,A)
+            pair_key = tuple(sorted([mem["id"], nid]))
+            if pair_key not in {tuple(sorted([c[0]["id"], c[1]["id"]])) for c in candidates}:
+                neighbor_mem = {
+                    "id": nid,
+                    "content": results["documents"][0][i],
+                    "metadata": results["metadatas"][0][i],
+                }
+                candidates.append((mem, neighbor_mem, dist))
+
+    if not candidates:
+        return 0
+
+    # Batch up to 10 pairs per Haiku call to save tokens
+    for batch_start in range(0, len(candidates), 10):
+        batch = candidates[batch_start:batch_start + 10]
+        # Skip pairs where one was already deleted in this batch
+        batch = [(a, b, d) for a, b, d in batch
+                 if a["id"] not in deleted_ids and b["id"] not in deleted_ids]
+        if not batch:
+            continue
+
+        pairs_text = []
+        for idx, (a, b, dist) in enumerate(batch):
+            pairs_text.append(
+                f"PAIR {idx}:\n"
+                f"  A [{a['id']}]: {a['content'][:300]}\n"
+                f"  B [{b['id']}]: {b['content'][:300]}\n"
+                f"  Distance: {dist:.3f}"
+            )
+
+        prompt = (
+            "Judge whether each memory pair is a TRUE DUPLICATE (same information, "
+            "just worded differently) or COMPLEMENTARY (each has unique info worth keeping).\n\n"
+            + "\n\n".join(pairs_text) +
+            "\n\nFor each pair, output a JSON array of objects:\n"
+            '[{"pair": 0, "verdict": "duplicate" or "keep_both", '
+            '"keep": "A" or "B" (if duplicate, which is better)}]\n'
+            "Output ONLY the JSON array, no explanation."
+        )
+
+        try:
+            result = subprocess.run(
+                ["claude", "-p", "--model", "haiku", "--max-turns", "1"],
+                input=prompt, capture_output=True, text=True, timeout=15
+            )
+            if result.returncode != 0:
+                continue
+
+            raw = result.stdout.strip()
+            # Strip code fences if present
+            if raw.startswith("```"):
+                raw = "\n".join(l for l in raw.split("\n") if not l.startswith("```"))
+
+            try:
+                verdicts = json.loads(raw)
+            except Exception:
+                match = re.search(r'\[.*\]', raw, re.DOTALL)
+                if match:
+                    verdicts = json.loads(match.group())
+                else:
+                    continue
+
+            for v in verdicts:
+                pair_idx = v.get("pair", -1)
+                if pair_idx < 0 or pair_idx >= len(batch):
+                    continue
+                if v.get("verdict") != "duplicate":
+                    continue
+
+                a, b, dist = batch[pair_idx]
+                if a["id"] in deleted_ids or b["id"] in deleted_ids:
+                    continue
+
+                keep_which = v.get("keep", "A")
+                if keep_which == "B":
+                    keep, delete = b, a
+                else:
+                    keep, delete = a, b
+
+                # Merge tags
+                keep_tags = set((keep["metadata"].get("tags", "") or "").split(","))
+                del_tags = set((delete["metadata"].get("tags", "") or "").split(","))
+                keep_tags |= del_tags
+                keep_tags.discard("")
+
+                updated_meta = dict(keep["metadata"])
+                updated_meta["tags"] = ",".join(sorted(keep_tags))
+                updated_meta["updated"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+                updated_meta["merged_from"] = delete["id"]
+
+                try:
+                    col.update(ids=[keep["id"]], metadatas=[updated_meta])
+                    col.delete(ids=[delete["id"]])
+                    deleted_ids.add(delete["id"])
+                    merged += 1
+                    print(f"[hygiene-llm] Merged '{delete['id']}' into '{keep['id']}' (dist={dist:.3f}, haiku-judged)")
+                except Exception as e:
+                    print(f"[hygiene-llm] Merge failed: {e}")
+
+        except subprocess.TimeoutExpired:
+            print("[hygiene-llm] Haiku timed out for batch")
+        except Exception as e:
+            print(f"[hygiene-llm] Batch failed: {e}")
 
     return merged
 
@@ -481,12 +637,21 @@ def run_hygiene():
 
     summary = {"total_before": len(memories)}
 
-    # Phase 1: Dedup
+    # Phase 1: Embedding-based dedup (distance < 0.35)
     merged = phase_dedup(col, memories)
     summary["duplicates_merged"] = merged
 
     # Refresh memories after dedup
     if merged > 0:
+        memories = [m for m in get_all_memories(col)
+                    if m["metadata"].get("type") != "agent_eval"]
+
+    # Phase 1b: LLM semantic dedup (borderline pairs 0.35-0.55)
+    llm_merged = phase_llm_dedup(col, memories)
+    summary["llm_duplicates_merged"] = llm_merged
+
+    # Refresh memories after LLM dedup
+    if llm_merged > 0:
         memories = [m for m in get_all_memories(col)
                     if m["metadata"].get("type") != "agent_eval"]
 

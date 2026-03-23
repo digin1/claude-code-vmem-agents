@@ -1,6 +1,6 @@
 #!/bin/bash
 # SubagentStart hook: inject cortex context into agents when they spawn
-# Must be FAST (< 500ms) — pure ChromaDB query, no LLM calls
+# Uses claude -p --model haiku for query expansion (~2s) + ChromaDB search
 # Returns additionalContext with domain-relevant memories
 
 INPUT=$(cat)
@@ -32,6 +32,7 @@ except:
     d = {}
 
 agent_type = d.get("agent_type", "")
+agent_prompt = d.get("prompt", "")
 cwd = d.get("cwd", "") or os.getcwd()
 
 # Skip general-purpose agents (too broad) and very short names
@@ -58,16 +59,66 @@ try:
         if proj.lower() in cwd_lower:
             matched_projects.add(proj)
 
-    # Semantic search: find memories relevant to this agent type
+    # ── LLM query expansion via claude -p ──────────────────────────
+    expanded_query = ""
+    try:
+        import subprocess as _sp
+        _expand_input = f"Agent type: {agent_type}\n"
+        if agent_prompt:
+            _expand_input += f"Task: {agent_prompt[:300]}\n"
+        _expand_prompt = (
+            "Extract 5-10 search keywords/phrases that would help find "
+            "stored memories about tools, credentials, APIs, config, rules, "
+            "or project context needed for this agent task. "
+            "Return ONLY the keywords, comma-separated, nothing else.\n\n"
+            + _expand_input
+        )
+        _proc = _sp.run(
+            ["claude", "-p", "--model", "haiku", "--max-turns", "1"],
+            input=_expand_prompt, capture_output=True, text=True, timeout=4
+        )
+        if _proc.returncode == 0 and _proc.stdout.strip():
+            expanded_query = _proc.stdout.strip()[:300]
+    except Exception:
+        pass
+
+    # ── Multi-query ChromaDB search ────────────────────────────────
+    n_results = min(8, col.count())
+
+    # Primary search: agent type + prompt excerpt
+    primary_query = agent_type
+    if agent_prompt:
+        primary_query = f"{agent_type} {agent_prompt[:200]}"
     results = col.query(
-        query_texts=[agent_type],
-        n_results=min(5, col.count())
+        query_texts=[primary_query],
+        n_results=n_results
     )
 
+    # Secondary search: LLM-expanded keywords
+    expanded_results = None
+    if expanded_query:
+        try:
+            expanded_results = col.query(
+                query_texts=[expanded_query],
+                n_results=n_results
+            )
+        except Exception:
+            pass
+
+    # Merge results: keep best (lowest) distance per memory ID
+    best = {}
+    for src in [results, expanded_results]:
+        if src is None:
+            continue
+        for i in range(len(src["ids"][0])):
+            mid = src["ids"][0][i]
+            dist = src["distances"][0][i] if src.get("distances") else 1.0
+            if mid not in best or dist < best[mid][0]:
+                best[mid] = (dist, i, src)
+
     relevant = []
-    for i in range(len(results["ids"][0])):
-        dist = results["distances"][0][i] if results.get("distances") else 1.0
-        meta = results["metadatas"][0][i]
+    for mid, (dist, i, src) in best.items():
+        meta = src["metadatas"][0][i]
         mtype = meta.get("type", "general")
         mproject = meta.get("project", "")
 
@@ -78,8 +129,8 @@ try:
         threshold = 0.55 if mproject in matched_projects else 0.45
         if dist < threshold:
             relevant.append({
-                "id": results["ids"][0][i],
-                "content": results["documents"][0][i][:400],
+                "id": mid,
+                "content": src["documents"][0][i][:400],
                 "type": mtype,
             })
 

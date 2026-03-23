@@ -36,6 +36,8 @@ try:
     parts = []
     if d.get('duplicates_merged', 0) > 0:
         parts.append(f\"-{d['duplicates_merged']} dupes\")
+    if d.get('llm_duplicates_merged', 0) > 0:
+        parts.append(f\"-{d['llm_duplicates_merged']} llm-dupes\")
     if d.get('stale_paths_flagged', 0) > 0:
         parts.append(f\"{d['stale_paths_flagged']} stale\")
     if d.get('recall_stats_updated', 0) > 0:
