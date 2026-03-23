@@ -306,19 +306,65 @@ else:
     if assistant_context:
         search_query = f"{user_prompt[:300]} {assistant_context[:200]}"
 
-    # More results and looser thresholds for explicit recall queries
+    # ── LLM query expansion via claude -p ──────────────────────────
+    # Ask Haiku to extract search keywords so we catch memories that
+    # are semantically distant from the raw prompt (e.g. "create a
+    # merge request" → "gitlab api token credentials").
+    expanded_query = ""
+    try:
+        import subprocess as _sp
+        _expand_prompt = (
+            "Extract 5-10 search keywords/phrases that would help find "
+            "stored memories about tools, credentials, APIs, config, or "
+            "project context needed to fulfil this request. "
+            "Return ONLY the keywords, comma-separated, nothing else.\n\n"
+            f"User message: {user_prompt[:300]}\n"
+        )
+        if assistant_context:
+            _expand_prompt += f"Recent conversation context: {assistant_context[:200]}\n"
+        _proc = _sp.run(
+            ["claude", "-p", "--model", "haiku", "--max-turns", "1"],
+            input=_expand_prompt, capture_output=True, text=True, timeout=4
+        )
+        if _proc.returncode == 0 and _proc.stdout.strip():
+            expanded_query = _proc.stdout.strip()[:300]
+    except Exception:
+        pass  # Timeout or missing claude — fall back to regular search
+
+    # ── Multi-query ChromaDB search ────────────────────────────────
     n_results = min(12 if is_remember_query else 8, col.count())
 
+    # Primary search: user prompt + assistant context
     results = col.query(
         query_texts=[search_query],
         n_results=n_results
     )
 
+    # Secondary search: LLM-expanded keywords (if available)
+    expanded_results = None
+    if expanded_query:
+        try:
+            expanded_results = col.query(
+                query_texts=[expanded_query],
+                n_results=n_results
+            )
+        except Exception:
+            pass
+
+    # Merge results: keep best (lowest) distance per memory ID
+    best = {}  # mid → (dist, index, source_results)
+    for src in [results, expanded_results]:
+        if src is None:
+            continue
+        for i in range(len(src["ids"][0])):
+            mid = src["ids"][0][i]
+            dist = src["distances"][0][i] if src.get("distances") else 1.0
+            if mid not in best or dist < best[mid][0]:
+                best[mid] = (dist, i, src)
+
     relevant = []
-    for i in range(len(results["ids"][0])):
-        dist = results["distances"][0][i] if results.get("distances") else 1.0
-        mid = results["ids"][0][i]
-        meta = results["metadatas"][0][i]
+    for mid, (dist, i, src) in best.items():
+        meta = src["metadatas"][0][i]
         mem_type = meta.get("type", "general")
         mem_project = meta.get("project", "")
 
@@ -326,7 +372,6 @@ else:
             continue
 
         # Recall boost: frequently recalled memories get a distance discount (closer = better)
-        # This makes well-used memories surface more easily without ever penalising unused ones
         recall_count = int(meta.get("recall_count", "0") or "0")
         if recall_count >= 5:
             dist *= 0.85   # 15% boost for heavily recalled memories
@@ -342,7 +387,7 @@ else:
         if dist < threshold:
             relevant.append({
                 "id": mid,
-                "content": results["documents"][0][i][:400],
+                "content": src["documents"][0][i][:400],
                 "type": mem_type,
                 "project": mem_project,
                 "distance": round(dist, 3)
