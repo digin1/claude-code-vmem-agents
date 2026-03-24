@@ -248,7 +248,7 @@ def phase_llm_dedup(col, memories):
 
         try:
             result = subprocess.run(
-                ["claude", "-p", "--model", "haiku", "--max-turns", "1"],
+                ["claude", "-p", "--model", "sonnet", "--max-turns", "1"],
                 input=prompt, capture_output=True, text=True, timeout=15
             )
             if result.returncode != 0:
@@ -491,7 +491,7 @@ def phase_consolidation(col, memories):
 
             try:
                 result = subprocess.run(
-                    ["claude", "-p", "--model", "haiku", "--mcp-config", "{}", "--strict-mcp-config"],
+                    ["claude", "-p", "--model", "sonnet", "--mcp-config", "{}", "--strict-mcp-config"],
                     input=f"""Consolidate these related memories into 1 comprehensive memory.
 
 MEMORIES TO CONSOLIDATE:

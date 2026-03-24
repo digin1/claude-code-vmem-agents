@@ -9,13 +9,15 @@
 #   - Tracks recall usage for relevance scoring
 #   - Consolidates 3+ related memories into 1 comprehensive one
 #   - Daily cooldown to avoid running every session
+#   - flock ensures only one instance runs at a time (prevents stampede)
 
 LIB="$(dirname "$0")/lib"
 COOLDOWN_DIR="$HOME/.claude/.cortex_hygiene_cooldown"
 ACTIVITY_FILE="$HOME/.claude/.cortex_activity"
+LOCK_FILE="$HOME/.claude/.cortex_hygiene.lock"
 mkdir -p "$COOLDOWN_DIR"
 
-# Daily cooldown
+# Daily cooldown — check BEFORE acquiring lock to fast-exit
 TODAY=$(date +%Y-%m-%d)
 COOLDOWN_FILE="$COOLDOWN_DIR/hygiene_${TODAY}"
 
@@ -23,10 +25,31 @@ if [ -f "$COOLDOWN_FILE" ]; then
     exit 0
 fi
 
+# Acquire exclusive lock (non-blocking) — if another instance is running, exit immediately
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+    echo "[cortex hygiene] Another instance is already running, skipping"
+    exit 0
+fi
+
+# Re-check cooldown after acquiring lock (another instance may have just finished)
+if [ -f "$COOLDOWN_FILE" ]; then
+    exit 0
+fi
+
+# Set cooldown BEFORE running so concurrent starters see it immediately
+touch "$COOLDOWN_FILE"
+
 echo "[cortex hygiene] Starting memory hygiene..."
 
-# Run hygiene
-RESULT=$(/usr/bin/python3 -W ignore "$LIB/memory_hygiene.py" 2>&1)
+# Run hygiene with a 5-minute timeout to prevent runaway processes
+RESULT=$(timeout 300 /usr/bin/python3 -W ignore "$LIB/memory_hygiene.py" 2>&1)
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 124 ]; then
+    echo "[cortex hygiene] Timed out after 5 minutes"
+    exit 0
+fi
 
 # Parse result for activity update
 MERGED=$(echo "$RESULT" | /usr/bin/python3 -c "
@@ -65,9 +88,6 @@ if [ -n "$MERGED" ]; then
 else
     echo "[cortex hygiene] No changes needed"
 fi
-
-# Set cooldown
-touch "$COOLDOWN_FILE"
 
 # Clean old cooldown files (>7 days)
 find "$COOLDOWN_DIR" -name "hygiene_*" -mtime +7 -delete 2>/dev/null
