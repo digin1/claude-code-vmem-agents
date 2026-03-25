@@ -45,6 +45,7 @@ RECALL_LOG = str(Path.home() / ".claude" / ".cortex_recall_log")
 
 MAX_CONTENT_LENGTH = 5000
 MAX_TOTAL_MEMORIES = 0  # 0 = unlimited
+P = "🧠 cortex ›"  # Prefix for all tool outputs — distinguishes from Claude Code
 RECALL_LOG_MAX_SIZE = 5 * 1024 * 1024  # 5MB — truncate to last 7 days when exceeded
 AUDIT_ROTATION_INTERVAL = 86400  # Check at most once per day (seconds)
 AUDIT_RETENTION_DAYS = 90
@@ -220,10 +221,10 @@ def memory_store(
     """
     # Content size limit
     if len(content) > MAX_CONTENT_LENGTH:
-        return f"Error: Content too long ({len(content)} chars). Maximum is {MAX_CONTENT_LENGTH}. Summarize before storing."
+        return f"{P} Error: Content too long ({len(content)} chars). Max {MAX_CONTENT_LENGTH}."
 
     if len(content) < 10:
-        return "Error: Content too short (min 10 chars). Provide meaningful content."
+        return f"{P} Error: Content too short (min 10 chars)."
 
     collection = get_collection()
 
@@ -233,7 +234,7 @@ def memory_store(
     is_update = bool(existing["ids"])
 
     if MAX_TOTAL_MEMORIES and not is_update and collection.count() >= MAX_TOTAL_MEMORIES:
-        return f"Error: Memory database full ({MAX_TOTAL_MEMORIES} memories). Delete old memories before storing new ones."
+        return f"{P} Error: Database full ({MAX_TOTAL_MEMORIES}). Delete old memories first."
 
     metadata = {"type": memory_type, "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S")}
     if project:
@@ -252,7 +253,7 @@ def memory_store(
         meta_parts.append(f"project={project}")
     if tags:
         meta_parts.append(f"tags={tags}")
-    return f"Stored: {mem_id} ({', '.join(meta_parts)})"
+    return f"{P} Stored: {mem_id} ({', '.join(meta_parts)})"
 
 
 @mcp.tool()
@@ -272,7 +273,7 @@ def memory_search(
     """
     collection = get_collection()
     if collection.count() == 0:
-        return "No memories stored yet."
+        return f"{P} No memories stored yet."
 
     # Cap results to prevent excessive output
     n = min(n, 20)
@@ -302,7 +303,7 @@ def memory_search(
     if output:
         _track_recalls(collection, [r["id"] for r in output])
 
-    lines = [f"Found {len(output)} result(s) ({collection.count()} total in DB):\n"]
+    lines = [f"{P} Found {len(output)} result(s) ({collection.count()} total in DB):\n"]
     for r in output:
         meta = r["metadata"]
         mtype = meta.get("type", "general")
@@ -325,7 +326,7 @@ def memory_list(memory_type: str = "", project: str = "") -> str:
     """
     collection = get_collection()
     if collection.count() == 0:
-        return "No memories stored."
+        return f"{P} No memories stored."
 
     where = {}
     if memory_type:
@@ -335,7 +336,7 @@ def memory_list(memory_type: str = "", project: str = "") -> str:
 
     data = collection.get(where=where if where else None)
     total = len(data["ids"])
-    lines = [f"{total} memor{'y' if total == 1 else 'ies'}:\n"]
+    lines = [f"{P} {total} memor{'y' if total == 1 else 'ies'}:\n"]
     for i in range(total):
         meta = data["metadatas"][i]
         mtype = meta.get("type", "general")
@@ -360,7 +361,7 @@ def memory_delete(memory_id: str) -> str:
     try:
         existing = collection.get(ids=[memory_id])
         if not existing["ids"]:
-            return f"Not found: {memory_id}"
+            return f"{P} Not found: {memory_id}"
 
         # Archive to audit log before deletion
         content = existing["documents"][0] if existing["documents"] else ""
@@ -383,9 +384,9 @@ def memory_delete(memory_id: str) -> str:
             pass
 
         collection.delete(ids=[memory_id])
-        return f"Deleted: {memory_id} (archived to audit log)"
+        return f"{P} Deleted: {memory_id} (archived to audit log)"
     except Exception as e:
-        return f"Error: {e}"
+        return f"{P} Error: {e}"
 
 
 @mcp.tool()
@@ -400,12 +401,12 @@ def memory_update(memory_id: str, content: str = "", memory_type: str = "", tags
         project: New project scope (empty = keep existing)
     """
     if content and len(content) > MAX_CONTENT_LENGTH:
-        return f"Error: Content too long ({len(content)} chars). Maximum is {MAX_CONTENT_LENGTH}."
+        return f"{P} Error: Content too long ({len(content)} chars). Max {MAX_CONTENT_LENGTH}."
 
     collection = get_collection()
     existing = collection.get(ids=[memory_id])
     if not existing["ids"]:
-        return f"Not found: {memory_id}"
+        return f"{P} Not found: {memory_id}"
 
     # Audit log the update (old content hash for diffing)
     old_content = existing["documents"][0] if existing["documents"] else ""
@@ -435,7 +436,7 @@ def memory_update(memory_id: str, content: str = "", memory_type: str = "", tags
         changed.append(f"tags={tags}")
     if project:
         changed.append(f"project={project}")
-    return f"Updated: {memory_id} ({', '.join(changed) if changed else 'metadata timestamp'})"
+    return f"{P} Updated: {memory_id} ({', '.join(changed) if changed else 'metadata timestamp'})"
 
 
 @mcp.tool()
@@ -445,7 +446,7 @@ def memory_stats() -> str:
     collection = get_collection()
     total = collection.count()
     if total == 0:
-        return "No memories stored (0/200)"
+        return f"{P} No memories stored."
 
     data = collection.get()
     types = {}
@@ -456,7 +457,7 @@ def memory_stats() -> str:
         p = m.get("project", "global")
         projects[p] = projects.get(p, 0) + 1
 
-    lines = [f"Total: {total} memories"]
+    lines = [f"{P} Total: {total} memories"]
     lines.append("By type: " + ", ".join(f"{t} ({c})" for t, c in sorted(types.items())))
     lines.append("By project: " + ", ".join(f"{p} ({c})" for p, c in sorted(projects.items())))
     return "\n".join(lines)
