@@ -41,19 +41,38 @@ from mcp.server.fastmcp import FastMCP
 
 DB_PATH = str(Path.home() / ".claude" / "cortex-db")
 AUDIT_LOG = str(Path.home() / ".claude" / ".cortex_audit.jsonl")
+RECALL_LOG = str(Path.home() / ".claude" / ".cortex_recall_log")
 
 MAX_CONTENT_LENGTH = 5000
 MAX_TOTAL_MEMORIES = 200
+RECALL_LOG_MAX_SIZE = 5 * 1024 * 1024  # 5MB — truncate to last 7 days when exceeded
+AUDIT_ROTATION_INTERVAL = 86400  # Check at most once per day (seconds)
+AUDIT_RETENTION_DAYS = 90
 
 mcp = FastMCP("cortex", log_level="ERROR")
 
+# Singleton ChromaDB client — reused across all tool calls (MCP server is long-lived)
+_chroma_client = None
+_chroma_collection = None
+_last_audit_rotation_check = 0
+
 
 def get_collection():
-    client = chromadb.PersistentClient(path=DB_PATH)
-    return client.get_or_create_collection(
+    global _chroma_client, _chroma_collection
+    if _chroma_collection is not None:
+        try:
+            _chroma_collection.count()  # Lightweight liveness check
+            return _chroma_collection
+        except Exception:
+            _chroma_client = None
+            _chroma_collection = None
+
+    _chroma_client = chromadb.PersistentClient(path=DB_PATH)
+    _chroma_collection = _chroma_client.get_or_create_collection(
         name="claude_memories",
         metadata={"hnsw:space": "cosine"},
     )
+    return _chroma_collection
 
 
 def audit_log_write(action, memory_id, content_hash="", metadata=None, reason=""):
@@ -71,6 +90,113 @@ def audit_log_write(action, memory_id, content_hash="", metadata=None, reason=""
                                  if k in ("type", "project", "tags")}
         with open(AUDIT_LOG, "a") as f:
             f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
+
+
+def _track_recalls(collection, result_ids):
+    """Update recall_count and last_recalled in ChromaDB, and append to recall log."""
+    if not result_ids:
+        return
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+
+    # 1. Update ChromaDB metadata inline (real-time recall tracking)
+    try:
+        existing = collection.get(ids=result_ids)
+        for i, mid in enumerate(existing["ids"]):
+            meta = dict(existing["metadatas"][i])
+            meta["recall_count"] = str(int(meta.get("recall_count", "0") or "0") + 1)
+            meta["last_recalled"] = now
+            collection.update(ids=[mid], metadatas=[meta])
+    except Exception:
+        pass
+
+    # 2. Append to recall log for recall.sh/memory_hygiene.py compatibility
+    try:
+        with open(RECALL_LOG, "a") as f:
+            f.write(f"{now} {','.join(result_ids)}\n")
+    except Exception:
+        pass
+
+    # 3. Truncate recall log if too large
+    _maybe_truncate_recall_log()
+
+
+def _maybe_truncate_recall_log():
+    """If recall log exceeds 5MB, truncate to last 7 days."""
+    try:
+        if not os.path.exists(RECALL_LOG):
+            return
+        if os.path.getsize(RECALL_LOG) < RECALL_LOG_MAX_SIZE:
+            return
+
+        cutoff = time.strftime(
+            "%Y-%m-%d",
+            time.localtime(time.time() - 7 * 86400)
+        )
+        kept = []
+        with open(RECALL_LOG, "r") as f:
+            for line in f:
+                if line[:10] >= cutoff:
+                    kept.append(line)
+
+        import tempfile
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(RECALL_LOG))
+        try:
+            with os.fdopen(tmp_fd, "w") as f:
+                f.writelines(kept)
+            os.replace(tmp_path, RECALL_LOG)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+
+def _maybe_rotate_audit_log():
+    """Rotate audit log if not checked recently. Keeps last 90 days."""
+    global _last_audit_rotation_check
+    now = time.time()
+    if now - _last_audit_rotation_check < AUDIT_ROTATION_INTERVAL:
+        return
+    _last_audit_rotation_check = now
+
+    try:
+        if not os.path.exists(AUDIT_LOG):
+            return
+        if os.path.getsize(AUDIT_LOG) < 50_000:  # Only bother if > 50KB
+            return
+
+        cutoff = time.strftime(
+            "%Y-%m-%dT%H:%M:%S",
+            time.localtime(now - AUDIT_RETENTION_DAYS * 86400)
+        )
+        kept = []
+        with open(AUDIT_LOG, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    if entry.get("timestamp", "") >= cutoff:
+                        kept.append(line)
+                except Exception:
+                    kept.append(line)  # Keep unparseable lines
+
+        import tempfile
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(AUDIT_LOG))
+        try:
+            with os.fdopen(tmp_fd, "w") as f:
+                f.write("\n".join(kept) + "\n" if kept else "")
+            os.replace(tmp_path, AUDIT_LOG)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
     except Exception:
         pass
 
@@ -175,6 +301,11 @@ def memory_search(
             "metadata": results["metadatas"][0][i],
             "distance": round(results["distances"][0][i], 4) if results.get("distances") else None,
         })
+
+    # Track recalls — update metadata + append to recall log
+    if output:
+        _track_recalls(collection, [r["id"] for r in output])
+
     return json.dumps({"results": output, "total_in_db": collection.count()}, indent=2)
 
 
@@ -294,6 +425,7 @@ def memory_update(memory_id: str, content: str = "", memory_type: str = "", tags
 @mcp.tool()
 def memory_stats() -> str:
     """Show statistics about the memory database — total count, breakdown by type and project."""
+    _maybe_rotate_audit_log()
     collection = get_collection()
     total = collection.count()
     if total == 0:
