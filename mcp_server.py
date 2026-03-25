@@ -220,16 +220,10 @@ def memory_store(
     """
     # Content size limit
     if len(content) > MAX_CONTENT_LENGTH:
-        return json.dumps({
-            "status": "error",
-            "message": f"Content too long ({len(content)} chars). Maximum is {MAX_CONTENT_LENGTH}. Summarize before storing."
-        })
+        return f"Error: Content too long ({len(content)} chars). Maximum is {MAX_CONTENT_LENGTH}. Summarize before storing."
 
     if len(content) < 10:
-        return json.dumps({
-            "status": "error",
-            "message": "Content too short (min 10 chars). Provide meaningful content."
-        })
+        return "Error: Content too short (min 10 chars). Provide meaningful content."
 
     collection = get_collection()
 
@@ -239,10 +233,7 @@ def memory_store(
     is_update = bool(existing["ids"])
 
     if not is_update and collection.count() >= MAX_TOTAL_MEMORIES:
-        return json.dumps({
-            "status": "error",
-            "message": f"Memory database full ({MAX_TOTAL_MEMORIES} memories). Delete old memories before storing new ones."
-        })
+        return f"Error: Memory database full ({MAX_TOTAL_MEMORIES} memories). Delete old memories before storing new ones."
 
     metadata = {"type": memory_type, "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S")}
     if project:
@@ -256,7 +247,12 @@ def memory_store(
                     content_hash=hashlib.sha256(content.encode()).hexdigest()[:16],
                     metadata=metadata)
 
-    return json.dumps({"status": "stored", "id": mem_id, "metadata": metadata})
+    meta_parts = [f"type={memory_type}"]
+    if project:
+        meta_parts.append(f"project={project}")
+    if tags:
+        meta_parts.append(f"tags={tags}")
+    return f"Stored: {mem_id} ({', '.join(meta_parts)})"
 
 
 @mcp.tool()
@@ -276,7 +272,7 @@ def memory_search(
     """
     collection = get_collection()
     if collection.count() == 0:
-        return json.dumps({"results": [], "message": "No memories stored yet"})
+        return "No memories stored yet."
 
     # Cap results to prevent excessive output
     n = min(n, 20)
@@ -306,7 +302,17 @@ def memory_search(
     if output:
         _track_recalls(collection, [r["id"] for r in output])
 
-    return json.dumps({"results": output, "total_in_db": collection.count()}, indent=2)
+    lines = [f"Found {len(output)} result(s) ({collection.count()} total in DB):\n"]
+    for r in output:
+        meta = r["metadata"]
+        mtype = meta.get("type", "general")
+        proj = meta.get("project", "")
+        proj_tag = f" [{proj}]" if proj else ""
+        dist = f" (distance: {r['distance']})" if r.get("distance") is not None else ""
+        lines.append(f"  [{mtype}] {r['id']}{proj_tag}{dist}")
+        lines.append(f"    {r['content'][:200]}")
+        lines.append("")
+    return "\n".join(lines)
 
 
 @mcp.tool()
@@ -319,7 +325,7 @@ def memory_list(memory_type: str = "", project: str = "") -> str:
     """
     collection = get_collection()
     if collection.count() == 0:
-        return json.dumps({"memories": [], "total": 0})
+        return "No memories stored."
 
     where = {}
     if memory_type:
@@ -328,15 +334,19 @@ def memory_list(memory_type: str = "", project: str = "") -> str:
         where["project"] = project
 
     data = collection.get(where=where if where else None)
-    output = []
-    for i in range(len(data["ids"])):
+    total = len(data["ids"])
+    lines = [f"{total} memor{'y' if total == 1 else 'ies'}:\n"]
+    for i in range(total):
+        meta = data["metadatas"][i]
+        mtype = meta.get("type", "general")
+        proj = meta.get("project", "")
+        proj_tag = f" [{proj}]" if proj else ""
         doc = data["documents"][i]
-        output.append({
-            "id": data["ids"][i],
-            "content": doc[:300] + ("..." if len(doc) > 300 else ""),
-            "metadata": data["metadatas"][i],
-        })
-    return json.dumps({"memories": output, "total": len(output)}, indent=2)
+        preview = doc[:200] + ("..." if len(doc) > 200 else "")
+        lines.append(f"  [{mtype}] {data['ids'][i]}{proj_tag}")
+        lines.append(f"    {preview}")
+        lines.append("")
+    return "\n".join(lines)
 
 
 @mcp.tool()
@@ -350,7 +360,7 @@ def memory_delete(memory_id: str) -> str:
     try:
         existing = collection.get(ids=[memory_id])
         if not existing["ids"]:
-            return json.dumps({"status": "not_found", "id": memory_id})
+            return f"Not found: {memory_id}"
 
         # Archive to audit log before deletion
         content = existing["documents"][0] if existing["documents"] else ""
@@ -373,9 +383,9 @@ def memory_delete(memory_id: str) -> str:
             pass
 
         collection.delete(ids=[memory_id])
-        return json.dumps({"status": "deleted", "id": memory_id, "audit": "content archived to audit log"})
+        return f"Deleted: {memory_id} (archived to audit log)"
     except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)})
+        return f"Error: {e}"
 
 
 @mcp.tool()
@@ -390,15 +400,12 @@ def memory_update(memory_id: str, content: str = "", memory_type: str = "", tags
         project: New project scope (empty = keep existing)
     """
     if content and len(content) > MAX_CONTENT_LENGTH:
-        return json.dumps({
-            "status": "error",
-            "message": f"Content too long ({len(content)} chars). Maximum is {MAX_CONTENT_LENGTH}."
-        })
+        return f"Error: Content too long ({len(content)} chars). Maximum is {MAX_CONTENT_LENGTH}."
 
     collection = get_collection()
     existing = collection.get(ids=[memory_id])
     if not existing["ids"]:
-        return json.dumps({"status": "not_found", "id": memory_id})
+        return f"Not found: {memory_id}"
 
     # Audit log the update (old content hash for diffing)
     old_content = existing["documents"][0] if existing["documents"] else ""
@@ -419,7 +426,16 @@ def memory_update(memory_id: str, content: str = "", memory_type: str = "", tags
     doc = content if content else existing["documents"][0]
     collection.update(ids=[memory_id], documents=[doc], metadatas=[metadata])
 
-    return json.dumps({"status": "updated", "id": memory_id})
+    changed = []
+    if content:
+        changed.append("content")
+    if memory_type:
+        changed.append(f"type={memory_type}")
+    if tags:
+        changed.append(f"tags={tags}")
+    if project:
+        changed.append(f"project={project}")
+    return f"Updated: {memory_id} ({', '.join(changed) if changed else 'metadata timestamp'})"
 
 
 @mcp.tool()
@@ -429,7 +445,7 @@ def memory_stats() -> str:
     collection = get_collection()
     total = collection.count()
     if total == 0:
-        return json.dumps({"total": 0})
+        return "No memories stored (0/200)"
 
     data = collection.get()
     types = {}
@@ -440,12 +456,10 @@ def memory_stats() -> str:
         p = m.get("project", "global")
         projects[p] = projects.get(p, 0) + 1
 
-    return json.dumps({
-        "total": total,
-        "max_capacity": MAX_TOTAL_MEMORIES,
-        "by_type": types,
-        "by_project": projects
-    }, indent=2)
+    lines = [f"Total: {total}/{MAX_TOTAL_MEMORIES} memories"]
+    lines.append("By type: " + ", ".join(f"{t} ({c})" for t, c in sorted(types.items())))
+    lines.append("By project: " + ", ".join(f"{p} ({c})" for p, c in sorted(projects.items())))
+    return "\n".join(lines)
 
 
 # ================================================================
