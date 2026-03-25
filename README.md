@@ -254,7 +254,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/cortex/learn.sh",
+            "command": "bash ~/.claude/skills/cortex/learn.sh 2>/dev/null",
             "statusMessage": "Saving session learnings..."
           }
         ]
@@ -263,7 +263,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/skills/cortex/fleet_eval_stop.sh",
+            "command": "bash ~/.claude/skills/cortex/fleet_eval_stop.sh 2>/dev/null",
             "statusMessage": "Evaluating agent fleet health..."
           }
         ]
@@ -463,6 +463,16 @@ Unlike the automatic path (which uses LLM knowledge only), the manual command us
 | `Stop` | `learn.sh` | Sync | Prompt Claude to save learnings |
 | `Stop` | `fleet_eval_stop.sh` | Sync | Lightweight fleet health check |
 
+### Optional Hooks (Not Enabled by Default)
+
+These scripts are included but not configured in the default `settings.json`. Add them if you want the extra functionality:
+
+| Hook Event | Script | What It Does |
+|---|---|---|
+| `PreToolUse(Bash)` | `bash_guard.sh` | Block dangerous/destructive shell commands (rm -rf /, dd, etc.) |
+| `PreCompact` | `compact_guide.sh` | Inject compaction guidance so Claude preserves modified files and user decisions |
+| `PostToolUse(Edit,Write)` | `edit_track.sh` | Track which files were modified during the session |
+
 ---
 
 ## Agent Fleet Management
@@ -595,6 +605,9 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │   ├── fleet_eval_stop.sh         # Stop: lightweight fleet health check
 │   ├── session_end_cleanup.sh     # SessionEnd: save summary + cleanup
 │   ├── agent_track.sh             # PostToolUse(Agent): log spawns
+│   ├── bash_guard.sh              # PreToolUse(Bash): block dangerous commands (optional)
+│   ├── compact_guide.sh           # PreCompact: inject compaction guidance (optional)
+│   ├── edit_track.sh              # PostToolUse(Edit,Write): track file modifications (optional)
 │   ├── agent_dashboard.py         # /cortex agents command
 │   ├── statusline.sh              # Multi-line status bar
 │   ├── mcp_server.py              # MCP server: 6 tools + 4 resources

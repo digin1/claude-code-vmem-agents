@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Cortex MCP server — always-on memory tools for Claude Code.
 
-Exposes memory_store, memory_search, memory_list, memory_delete, memory_stats
-as native Claude Code tools via the MCP protocol (stdio transport).
+Exposes memory_store, memory_search, memory_list, memory_delete, memory_update,
+memory_stats as native Claude Code tools via the MCP protocol (stdio transport).
 
 Safety guardrails:
   - Content size limit: 5000 chars per memory
