@@ -8,7 +8,7 @@ Safety guardrails:
   - Content size limit: 5000 chars per memory
   - Soft-delete: deleted memories archived to audit log before removal
   - Audit trail: all store/update/delete operations logged to .cortex_audit.jsonl
-  - Total DB cap: 200 memories max
+  - Total DB cap: unlimited (set MAX_TOTAL_MEMORIES > 0 to enforce a limit)
 """
 
 import hashlib
@@ -44,7 +44,7 @@ AUDIT_LOG = str(Path.home() / ".claude" / ".cortex_audit.jsonl")
 RECALL_LOG = str(Path.home() / ".claude" / ".cortex_recall_log")
 
 MAX_CONTENT_LENGTH = 5000
-MAX_TOTAL_MEMORIES = 200
+MAX_TOTAL_MEMORIES = 0  # 0 = unlimited
 RECALL_LOG_MAX_SIZE = 5 * 1024 * 1024  # 5MB — truncate to last 7 days when exceeded
 AUDIT_ROTATION_INTERVAL = 86400  # Check at most once per day (seconds)
 AUDIT_RETENTION_DAYS = 90
@@ -232,7 +232,7 @@ def memory_store(
     existing = collection.get(ids=[mem_id])
     is_update = bool(existing["ids"])
 
-    if not is_update and collection.count() >= MAX_TOTAL_MEMORIES:
+    if MAX_TOTAL_MEMORIES and not is_update and collection.count() >= MAX_TOTAL_MEMORIES:
         return f"Error: Memory database full ({MAX_TOTAL_MEMORIES} memories). Delete old memories before storing new ones."
 
     metadata = {"type": memory_type, "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S")}
@@ -456,7 +456,7 @@ def memory_stats() -> str:
         p = m.get("project", "global")
         projects[p] = projects.get(p, 0) + 1
 
-    lines = [f"Total: {total}/{MAX_TOTAL_MEMORIES} memories"]
+    lines = [f"Total: {total} memories"]
     lines.append("By type: " + ", ".join(f"{t} ({c})" for t, c in sorted(types.items())))
     lines.append("By project: " + ", ".join(f"{p} ({c})" for p, c in sorted(projects.items())))
     return "\n".join(lines)
