@@ -296,7 +296,7 @@
   <span class="arrow">└──</span> <span class="new">cortex_pretool_enrich.sh</span>  auto-tag project + audit
 
 <span class="step">Session Paused</span>
-  <span class="arrow">├──</span> <span class="new">learn.sh</span>             prompt to save learnings
+  <span class="arrow">├──</span> <span class="new">learn.sh</span>             block stop + save learnings via decision:block
   <span class="arrow">└──</span> <span class="new">fleet_eval_stop.sh</span>   fleet health check
 
 <span class="step">Session Ended</span>
@@ -320,7 +320,7 @@
             <tr><td>PostCompact</td><td>post_compact_save.sh</td><td>Extract from compressed summary</td></tr>
             <tr><td>SessionStart (x4)</td><td>cleanup + bootstrap + hygiene + skill_discover</td><td>Prune, create agents, dedup memories, generate skills</td></tr>
             <tr><td>SessionEnd</td><td>session_end_cleanup.sh</td><td>Save session summary + cleanup</td></tr>
-            <tr><td>Stop (x2)</td><td>learn + fleet_eval_stop</td><td>Save learnings + fleet health check</td></tr>
+            <tr><td>Stop (x2)</td><td>learn + fleet_eval_stop</td><td>Block stop to save learnings via MCP + fleet health check</td></tr>
           </tbody>
         </table>
       </div>

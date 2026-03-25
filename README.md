@@ -338,7 +338,7 @@ Context Compressed
   └── post_compact_save.sh → extract key insights from the compressed summary
 
 Session Paused
-  ├── learn.sh            → prompt Claude to save learnings
+  ├── learn.sh            → block stop + give Claude a turn to save learnings via MCP
   └── fleet_eval_stop.sh  → check agent fleet health (if 5+ spawns today)
 
 Session Ended
@@ -460,7 +460,7 @@ Unlike the automatic path (which uses LLM knowledge only), the manual command us
 | `SessionStart` | `memory_hygiene.sh` | Async | Dedup, path validation, consolidation (daily) |
 | `SessionStart` | `skill_discover.sh` | Async | Auto-detect tech stack + generate skill commands (weekly) |
 | `SessionEnd` | `session_end_cleanup.sh` | Sync | Save session summary + cleanup |
-| `Stop` | `learn.sh` | Sync | Prompt Claude to save learnings |
+| `Stop` | `learn.sh` | Sync | Block stop + give Claude a turn to save learnings via MCP |
 | `Stop` | `fleet_eval_stop.sh` | Sync | Lightweight fleet health check |
 
 ### Optional Hooks (Not Enabled by Default)
@@ -601,7 +601,7 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │   ├── memory_hygiene.sh          # SessionStart: dedup, validate, consolidate
 │   ├── cleanup.sh                 # SessionStart: prune stale data
 │   ├── skill_discover.sh          # SessionStart: auto-detect tech stack + generate skills
-│   ├── learn.sh                   # Stop: prompt to save learnings
+│   ├── learn.sh                   # Stop: block stop + save learnings via decision:block
 │   ├── fleet_eval_stop.sh         # Stop: lightweight fleet health check
 │   ├── session_end_cleanup.sh     # SessionEnd: save summary + cleanup
 │   ├── agent_track.sh             # PostToolUse(Agent): log spawns
