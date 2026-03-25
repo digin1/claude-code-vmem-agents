@@ -306,30 +306,33 @@ else:
     if assistant_context:
         search_query = f"{user_prompt[:300]} {assistant_context[:200]}"
 
-    # ── LLM query expansion via claude -p ──────────────────────────
-    # Ask Haiku to extract search keywords so we catch memories that
-    # are semantically distant from the raw prompt (e.g. "create a
-    # merge request" → "gitlab api token credentials").
+    # ── LLM query expansion via claude -p (DISABLED) ───────────────
+    # BUG: claude -p returns empty stdout on v2.1.83 despite generating
+    # tokens (output_tokens > 0, result: ""). Filed as:
+    #   https://github.com/anthropics/claude-code/issues/38774
+    # TODO: Re-enable when the bug is fixed. Test with:
+    #   echo "say hello" | claude -p --model haiku --max-turns 1
+    # If that produces output, uncomment the block below.
     expanded_query = ""
-    try:
-        import subprocess as _sp
-        _expand_prompt = (
-            "Extract 5-10 search keywords/phrases that would help find "
-            "stored memories about tools, credentials, APIs, config, or "
-            "project context needed to fulfil this request. "
-            "Return ONLY the keywords, comma-separated, nothing else.\n\n"
-            f"User message: {user_prompt[:300]}\n"
-        )
-        if assistant_context:
-            _expand_prompt += f"Recent conversation context: {assistant_context[:200]}\n"
-        _proc = _sp.run(
-            ["claude", "-p", "--model", "haiku", "--max-turns", "1"],
-            input=_expand_prompt, capture_output=True, text=True, timeout=4
-        )
-        if _proc.returncode == 0 and _proc.stdout.strip():
-            expanded_query = _proc.stdout.strip()[:300]
-    except Exception:
-        pass  # Timeout or missing claude — fall back to regular search
+    # try:
+    #     import subprocess as _sp
+    #     _expand_prompt = (
+    #         "Extract 5-10 search keywords/phrases that would help find "
+    #         "stored memories about tools, credentials, APIs, config, or "
+    #         "project context needed to fulfil this request. "
+    #         "Return ONLY the keywords, comma-separated, nothing else.\n\n"
+    #         f"User message: {user_prompt[:300]}\n"
+    #     )
+    #     if assistant_context:
+    #         _expand_prompt += f"Recent conversation context: {assistant_context[:200]}\n"
+    #     _proc = _sp.run(
+    #         ["claude", "-p", "--model", "haiku", "--max-turns", "1"],
+    #         input=_expand_prompt, capture_output=True, text=True, timeout=4
+    #     )
+    #     if _proc.returncode == 0 and _proc.stdout.strip():
+    #         expanded_query = _proc.stdout.strip()[:300]
+    # except Exception:
+    #     pass  # Timeout or missing claude — fall back to regular search
 
     # ── Multi-query ChromaDB search ────────────────────────────────
     n_results = min(12 if is_remember_query else 8, col.count())

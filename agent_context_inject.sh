@@ -59,28 +59,11 @@ try:
         if proj.lower() in cwd_lower:
             matched_projects.add(proj)
 
-    # ── LLM query expansion via claude -p ──────────────────────────
+    # ── LLM query expansion via claude -p (DISABLED) ───────────────
+    # BUG: claude -p returns empty stdout on v2.1.83.
+    # Tracked: https://github.com/anthropics/claude-code/issues/38774
+    # TODO: Re-enable when fixed.
     expanded_query = ""
-    try:
-        import subprocess as _sp
-        _expand_input = f"Agent type: {agent_type}\n"
-        if agent_prompt:
-            _expand_input += f"Task: {agent_prompt[:300]}\n"
-        _expand_prompt = (
-            "Extract 5-10 search keywords/phrases that would help find "
-            "stored memories about tools, credentials, APIs, config, rules, "
-            "or project context needed for this agent task. "
-            "Return ONLY the keywords, comma-separated, nothing else.\n\n"
-            + _expand_input
-        )
-        _proc = _sp.run(
-            ["claude", "-p", "--model", "haiku", "--max-turns", "1"],
-            input=_expand_prompt, capture_output=True, text=True, timeout=4
-        )
-        if _proc.returncode == 0 and _proc.stdout.strip():
-            expanded_query = _proc.stdout.strip()[:300]
-    except Exception:
-        pass
 
     # ── Multi-query ChromaDB search ────────────────────────────────
     n_results = min(8, col.count())
