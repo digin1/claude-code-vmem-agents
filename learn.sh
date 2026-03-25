@@ -72,24 +72,23 @@ if msg_count < 4:
 # Build a hint of what the session was about (first few user messages)
 topic_hint = " | ".join(user_msgs[:3])[:400]
 
-# Block the stop — put full instructions in "reason" since that's what Claude reads
-reason_text = (
-    "Session auto-learn: Review this conversation and store any NEW learnings "
-    "using mcp__cortex__memory_store. "
-    "Look for: (1) feedback — user corrections or preferences, "
-    "(2) project — decisions, constraints, bugs discovered, "
-    "(3) reference — file paths, external resources, "
-    "(4) user — new info about user's role or expertise. "
-    "Skip ephemeral task details and things obvious from the code. "
-    "Use descriptive memory_id values with appropriate memory_type and tags. "
-    "Add project tag if project-specific. "
-    "If nothing new was learned, just say so briefly. "
-    f"Session topics: {topic_hint}"
-)
-
+# Block the stop — short reason (shown in UI) + detailed systemMessage (read by Claude)
 output = json.dumps({
     "decision": "block",
-    "reason": reason_text
+    "reason": "Saving session learnings",
+    "systemMessage": (
+        "[cortex auto-learn] Store any NEW learnings from this conversation "
+        "using mcp__cortex__memory_store. "
+        "Look for: (1) feedback — user corrections or preferences, "
+        "(2) project — decisions, constraints, bugs discovered, "
+        "(3) reference — file paths, external resources, "
+        "(4) user — new info about user's role or expertise. "
+        "Skip ephemeral task details and things obvious from the code. "
+        "Use descriptive memory_id values with appropriate memory_type and tags. "
+        "Add project tag if project-specific. "
+        "If nothing new was learned, just say so briefly. "
+        f"Session topics: {topic_hint}"
+    )
 })
 print(output)
 
