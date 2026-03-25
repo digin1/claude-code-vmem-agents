@@ -19,6 +19,11 @@ if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
     exit 0
 fi
 
+# Pre-check: verify MCP server can actually start (mcp + chromadb importable)
+if ! /usr/bin/python3 -W ignore -c "import mcp, chromadb" 2>/dev/null; then
+    exit 0
+fi
+
 # Check if session had enough meaningful content to learn from
 /usr/bin/python3 -W ignore - "$INPUT" 2>/dev/null <<'PYEOF'
 import sys, json, os
@@ -87,6 +92,8 @@ output = json.dumps({
         "Use descriptive memory_id values with appropriate memory_type and tags. "
         "Add project tag if project-specific. "
         "If nothing new was learned, just say so briefly. "
+        "IMPORTANT: After storing memories, call mcp__cortex__memory_stats to verify "
+        "the count increased. If it shows 0, report that MCP storage failed. "
         f"Session topics: {topic_hint}"
     )
 })
