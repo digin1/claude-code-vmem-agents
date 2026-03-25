@@ -178,8 +178,13 @@ if [ -f "$ACTIVITY_FILE" ]; then
     fi
 fi
 
+# ── Animated cortex icon (alternates each second) ──
+CORTEX_ICONS=("⬡" "⏣")
+ICON_IDX=$(( $(date +%s) % 2 ))
+CX="${CORTEX_ICONS[$ICON_IDX]}"
+
 # ── Assemble output ──
-OUTPUT="\U0001f9e0 ${MEMORY_LINE}"
+OUTPUT="${CX} ${MEMORY_LINE}"
 
 if [ -n "$FLEET_LINE" ]; then
     OUTPUT="${OUTPUT}\n\U0001f916 ${FLEET_LINE}"
