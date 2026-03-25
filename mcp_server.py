@@ -46,7 +46,7 @@ RECALL_LOG = str(Path.home() / ".claude" / ".cortex_recall_log")
 MAX_CONTENT_LENGTH = 5000
 MAX_TOTAL_MEMORIES = 0  # 0 = unlimited
 def _prefix():
-    return "\033[38;5;141m❖ cortex ›\033[0m"
+    return "❖ cortex ›"
 RECALL_LOG_MAX_SIZE = 5 * 1024 * 1024  # 5MB — truncate to last 7 days when exceeded
 AUDIT_ROTATION_INTERVAL = 86400  # Check at most once per day (seconds)
 AUDIT_RETENTION_DAYS = 90
