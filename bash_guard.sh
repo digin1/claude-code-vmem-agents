@@ -58,7 +58,7 @@ def strip_data_content(cmd):
 
 
 def block(reason):
-    print(json.dumps({"decision": "block", "reason": reason}))
+    print(json.dumps({"decision": "block", "reason": f"[cortex] {reason}"}))
     sys.exit(0)
 
 

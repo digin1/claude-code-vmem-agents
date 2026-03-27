@@ -85,7 +85,7 @@ topic_hint = " | ".join(clean_msgs)[:300]
 # Keep systemMessage concise — it's visible when the user expands the hook output
 output = json.dumps({
     "decision": "block",
-    "reason": "Saving session learnings",
+    "reason": "[cortex] Saving session learnings",
     "systemMessage": (
         "[cortex] Save new learnings via mcp__cortex__memory_store. "
         "Types: feedback, project, reference, user. "
