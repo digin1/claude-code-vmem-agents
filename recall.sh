@@ -148,17 +148,25 @@ is_remember_query = any(kw in prompt_lower for kw in remember_keywords)
 
 
 # ================================================================
-# FIRST MESSAGE: Comprehensive project-aware context load
+# FIRST MESSAGE: Relevance-ranked context load
 # ================================================================
 if first_msg:
+    MAX_OUTPUT = 7000  # total output cap (memories + inventory + JSON)
+    INVENTORY_RESERVE = 2500  # reserve for agent/skill/doc inventory
+    SUMMARY_LIMIT = 150
+
+    # ── Step 1: Collect all candidate memories with relevance scores ──
     all_data = col.get(include=["documents", "metadatas"])
 
-    sections = {
-        "user": [],
-        "feedback": [],
-        "project": [],
-        "reference": []
-    }
+    # Score every memory by relevance (lower = more relevant)
+    # Tier 0 (always include): user, feedback — behavioral rules
+    # Tier 1 (high priority): project memories matching current project
+    # Tier 2 (medium): references matching current project
+    # Tier 3 (lower): global/untagged project+reference memories
+    # Tier 4 (lowest): cross-project memories
+    # Within each tier, sort by semantic distance to prompt
+
+    candidates = []  # [(score, mid, doc, meta, tier)]
 
     for i in range(len(all_data["ids"])):
         mid = all_data["ids"][i]
@@ -167,99 +175,84 @@ if first_msg:
         mtype = meta.get("type", "general")
         mproject = meta.get("project", "")
 
-        # Skip agent evals — not useful as conversation context
         if mtype == "agent_eval":
             continue
 
-        # USER + FEEDBACK: always include (cross-project knowledge)
-        if mtype == "user":
-            sections["user"].append((mid, doc, meta))
-        elif mtype == "feedback":
-            sections["feedback"].append((mid, doc, meta))
-
-        # PROJECT: include if matches current project, is global, or untagged
-        elif mtype == "project":
-            if mproject in matched_projects or mproject == "global" or mproject == "":
-                sections["project"].append((mid, doc, meta))
-
-        # REFERENCE: always include — references are high-value and few in number
+        if mtype in ("user", "feedback", "preferences"):
+            candidates.append((0, mid, doc, meta, 0))  # tier 0: always
+        elif mtype == "project" and (mproject in matched_projects):
+            candidates.append((1, mid, doc, meta, 1))  # tier 1: current project
+        elif mtype == "reference" and (mproject in matched_projects):
+            candidates.append((2, mid, doc, meta, 2))  # tier 2: project refs
+        elif mtype in ("project", "reference") and (mproject in ("", "global")):
+            candidates.append((3, mid, doc, meta, 3))  # tier 3: global
         elif mtype == "reference":
-            sections["reference"].append((mid, doc, meta))
+            candidates.append((4, mid, doc, meta, 4))  # tier 4: other refs
 
-    # Also do semantic search for cross-project hits the above missed
-    # (e.g. user asks about glabheatmap while in grantlab-dockerswarm)
-    seen_ids = {mid for section in sections.values() for mid, _, _ in section}
-
+    # ── Step 2: Get semantic scores for prompt-based ranking within tiers ──
+    sem_distances = {}
     if len(user_prompt) >= 3:
         try:
-            # More results and looser threshold for "remember" queries
-            sem_n = min(10 if is_remember_query else 5, col.count())
-            sem_threshold = 0.8 if is_remember_query else 0.65
-
-            sem_results = col.query(
-                query_texts=[user_prompt[:400]],
-                n_results=sem_n
-            )
-            cross_project = []
+            n_query = min(col.count(), 30 if is_remember_query else 20)
+            sem_results = col.query(query_texts=[user_prompt[:400]], n_results=n_query)
             for i in range(len(sem_results["ids"][0])):
-                mid = sem_results["ids"][0][i]
-                dist = sem_results["distances"][0][i] if sem_results.get("distances") else 1.0
-                meta = sem_results["metadatas"][0][i]
-                if mid not in seen_ids and dist < sem_threshold and meta.get("type") != "agent_eval":
-                    cross_project.append((mid, sem_results["documents"][0][i], meta))
-                    seen_ids.add(mid)
+                sem_distances[sem_results["ids"][0][i]] = sem_results["distances"][0][i]
         except:
-            cross_project = []
-    else:
-        cross_project = []
+            pass
 
-    # Build structured output
+    # ── Step 3: Sort by (tier, semantic_distance) ──
+    def sort_key(item):
+        score, mid, doc, meta, tier = item
+        dist = sem_distances.get(mid, 0.99)  # default: low relevance
+        return (tier, dist)
+
+    candidates.sort(key=sort_key)
+
+    # ── Step 4: Fill output budget greedily ──
     proj_label = ', '.join(sorted(matched_projects)) if matched_projects else "unknown"
-    lines = [f"[cortex] Session context loaded for project: {proj_label}"]
+    lines = [f"[cortex] Session context for: {proj_label}"]
 
-    headers = {
-        "user": "User Profile",
-        "feedback": "Rules & Preferences",
-        "project": "Project Context",
-        "reference": "References & Locations"
-    }
+    type_labels = {"user": "user", "feedback": "rule", "preferences": "pref",
+                   "project": "proj", "reference": "ref"}
+    budget = MAX_OUTPUT - INVENTORY_RESERVE - 200  # reserve for inventory + header
+    included_ids = []
+    included_count = 0
+    current_tier = -1
 
-    # Progressive disclosure: truncate long memories to save tokens
-    # Full content available via mcp__cortex__memory_search when needed
-    SUMMARY_LIMIT = 250
+    tier_names = {0: "Profile & Rules", 1: "Project Context",
+                  2: "Project References", 3: "Global Context", 4: "Other References"}
 
-    total = 0
-    for section_key in ["user", "feedback", "project", "reference"]:
-        items = sections[section_key]
-        if not items:
-            continue
-        total += len(items)
-        lines.append(f"\n== {headers[section_key]} ({len(items)}) ==")
-        for mid, doc, meta in items:
-            # Show project tag on project/reference items for clarity
-            proj_tag = ""
-            if section_key in ("project", "reference"):
-                p = meta.get("project", "")
-                if p:
-                    proj_tag = f" [{p}]"
-            summary = doc[:SUMMARY_LIMIT] + ("..." if len(doc) > SUMMARY_LIMIT else "")
-            lines.append(f"  {mid}{proj_tag}: {summary}")
+    for score, mid, doc, meta, tier in candidates:
+        mtype = meta.get("type", "general")
+        mproject = meta.get("project", "")
+        proj_tag = f" [{mproject}]" if mproject and mtype in ("project", "reference") else ""
+        dist = sem_distances.get(mid, None)
+        relevance = f" ({100-int(dist*100)}%)" if dist is not None else ""
 
-    # Add cross-project semantic hits
-    if cross_project:
-        total += len(cross_project)
-        lines.append(f"\n== Also Relevant (from other projects) ({len(cross_project)}) ==")
-        for mid, doc, meta in cross_project:
-            p = meta.get("project", "")
-            proj_tag = f" [{p}]" if p else ""
-            summary = doc[:SUMMARY_LIMIT] + ("..." if len(doc) > SUMMARY_LIMIT else "")
-            lines.append(f"  {mid}{proj_tag}: {summary}")
+        summary = doc[:SUMMARY_LIMIT] + ("..." if len(doc) > SUMMARY_LIMIT else "")
+        entry = f"  [{type_labels.get(mtype, mtype)}] {mid}{proj_tag}: {summary}"
 
-    # ── Agent, skill, and doc inventory (first message only) ──
+        # Add tier header
+        if tier != current_tier:
+            header = f"\n== {tier_names.get(tier, 'Other')} =="
+            if budget - len(header) - len(entry) < 0:
+                break
+            lines.append(header)
+            budget -= len(header) + 1
+            current_tier = tier
+
+        if budget - len(entry) < 0:
+            break  # budget exhausted
+
+        lines.append(entry)
+        budget -= len(entry) + 1
+        included_ids.append(mid)
+        included_count += 1
+
+    # ── Step 5: Agent, skill, and doc inventory ──
     import glob as _glob
 
     def _scan_inventory(dirs, prefix=""):
-        """Scan .md files for name + description from YAML frontmatter."""
         items = []
         for scope, d in dirs:
             if not os.path.isdir(d):
@@ -280,7 +273,7 @@ if first_msg:
                                 desc = line.split(":", 1)[1].strip().strip('"').strip("'")
                 except Exception:
                     pass
-                items.append(f"  [{scope}] {prefix}{name}: {desc[:100]}")
+                items.append(f"  [{scope}] {prefix}{name}: {desc[:80]}")
         return items
 
     agent_lines = _scan_inventory([
@@ -300,76 +293,37 @@ if first_msg:
                 try:
                     with open(mp) as f:
                         m = json.load(f)
-                    doc_lines.append(f"  {fid}: {m.get('file_count', '?')} files at ~/.claude/docs/{fid}/")
+                    doc_lines.append(f"  {fid}: {m.get('file_count', '?')} files")
                 except Exception:
-                    doc_lines.append(f"  {fid}: ~/.claude/docs/{fid}/")
+                    pass
 
     if agent_lines:
-        lines.append("\n[cortex] Available agents:")
+        lines.append("\n[cortex] Agents:")
         lines.extend(agent_lines)
     if skill_lines:
-        lines.append("\n[cortex] Available skills:")
+        lines.append("\n[cortex] Skills:")
         lines.extend(skill_lines)
     if doc_lines:
-        lines.append("\n[cortex] Cached docs:")
+        lines.append("\n[cortex] Docs:")
         lines.extend(doc_lines)
 
-    if total > 0 or agent_lines or skill_lines:
-        with open(ACTIVITY_FILE, "w") as af:
-            af.write(f"loaded {total} (session start)")
+    skipped = len(candidates) - included_count
+    if skipped > 0:
+        lines.append(f"\n[cortex] Showing {included_count}/{included_count + skipped} memories (ranked by relevance). Use mcp__cortex__memory_search for more.")
 
-        # Log recalled IDs for hygiene tracking
+    if included_count > 0 or agent_lines:
+        with open(ACTIVITY_FILE, "w") as af:
+            af.write(f"loaded {included_count} (session start)")
+
+        # Log recalled IDs
         try:
             recall_log = os.path.expanduser("~/.claude/.cortex_recall_log")
-            all_recalled_ids = []
-            for section in sections.values():
-                for mid, _, _ in section:
-                    all_recalled_ids.append(mid)
-            for mid, _, _ in cross_project:
-                all_recalled_ids.append(mid)
             with open(recall_log, "a") as rl:
-                rl.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {','.join(all_recalled_ids)}\n")
+                rl.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {','.join(included_ids)}\n")
         except Exception:
             pass
 
-        # Smart truncation: keep output under 8KB
         context_text = '\n'.join(lines)
-        MAX_OUTPUT = 8000
-        if len(context_text) > MAX_OUTPUT:
-            # Prioritize: user/feedback > project > agents/skills > reference > cross-project
-            # Reduce SUMMARY_LIMIT and rebuild
-            for limit in [150, 100, 60]:
-                truncated_lines = [lines[0]]  # keep header
-                for section_key in ["user", "feedback", "project", "reference"]:
-                    items = sections[section_key]
-                    if not items:
-                        continue
-                    truncated_lines.append(f"\n== {headers[section_key]} ({len(items)}) ==")
-                    for mid, doc, meta in items:
-                        proj_tag = ""
-                        if section_key in ("project", "reference"):
-                            p = meta.get("project", "")
-                            if p:
-                                proj_tag = f" [{p}]"
-                        summary = doc[:limit] + ("..." if len(doc) > limit else "")
-                        truncated_lines.append(f"  {mid}{proj_tag}: {summary}")
-                if agent_lines:
-                    truncated_lines.append("\n[cortex] Available agents:")
-                    truncated_lines.extend(agent_lines)
-                if skill_lines:
-                    truncated_lines.append("\n[cortex] Available skills:")
-                    truncated_lines.extend(skill_lines)
-                if doc_lines:
-                    truncated_lines.append("\n[cortex] Cached docs:")
-                    truncated_lines.extend(doc_lines)
-                context_text = '\n'.join(truncated_lines)
-                if len(context_text) <= MAX_OUTPUT:
-                    break
-
-            # If still too large, hard truncate
-            if len(context_text) > MAX_OUTPUT:
-                context_text = context_text[:MAX_OUTPUT] + "\n[cortex] Output truncated — use mcp__cortex__memory_search for full content."
-
         output = json.dumps({
             "suppressOutput": True,
             "hookSpecificOutput": {
