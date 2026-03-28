@@ -45,6 +45,11 @@ Project-specific agents are available in `.claude/agents/`. Global agents in `~/
 - **Prefer specialized agents** over general-purpose when a task matches an agent's description — they have domain knowledge and cortex memories injected via the SubagentStart hook.
 - Agents are also auto-created from session patterns at session end (via learn.sh). Duplicate detection via semantic similarity (cosine distance < 0.55) prevents redundancy.
 
+### Key Global Agents
+
+- **Code Documenter** (`code-documenter`) — generates architecture docs, API references, module guides as `.md` files inside the project's `docs/` directory. Use when the user asks to document code, create a README, or explain the codebase structure.
+- **Simulation Tester** (`simulation-tester`) — creates tests using realistic but fabricated data. Reads codebase in **read-only mode** (never modifies source), writes test files only. Use when the user asks for tests, mock data, or test coverage without touching real data.
+
 ### Creating Agents Inline
 
 When you spot a recurring pattern that would benefit from a specialized agent, create one directly:
