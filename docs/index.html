@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <title>cortex — Self-Evolving Memory & Auto-Generated Agents for Claude Code</title>
-  <meta name="description" content="The first Claude Code plugin where agents write their own agents and skills auto-generate from your tech stack. 10-hook lifecycle, persistent vector memory, automatic agent fleet management, auto-skill discovery, memory hygiene, and MCP resources.">
-  <meta name="keywords" content="claude code, claude code plugin, claude code agents, claude code subagents, claude code memory, claude code hooks, persistent memory, vector memory, chromadb, auto agent generation, self-evolving agents, claude code skills, auto skill discovery, framework detection, anthropic, claude ai, ai agents, ai memory, mcp server, mcp resources, fastapi, nextjs, react, django, flask">
+  <meta name="description" content="The first Claude Code plugin where agents write their own agents and skills auto-generate from your tech stack. 11-hook lifecycle, persistent vector memory, automatic agent fleet management, auto-skill discovery, knowledge base caching, memory hygiene, and MCP resources.">
+  <meta name="keywords" content="claude code, claude code plugin, claude code agents, claude code subagents, claude code memory, claude code hooks, persistent memory, vector memory, chromadb, auto agent generation, self-evolving agents, claude code skills, auto skill discovery, framework detection, knowledge base, doc caching, framework documentation, anthropic, claude ai, ai agents, ai memory, mcp server, mcp resources, fastapi, nextjs, react, django, flask">
   <meta name="author" content="Digin Dominic">
   <meta name="robots" content="index, follow">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="canonical" href="https://digindominic.me/cortex/">
 
   <meta property="og:title" content="cortex — Agents That Write Their Own Agents">
-  <meta property="og:description" content="Self-evolving vector memory, auto-generated subagents, and auto-skill discovery for Claude Code. 10 hook events, persistent agent memory, memory hygiene, MCP resources.">
+  <meta property="og:description" content="Self-evolving vector memory, auto-generated subagents, and auto-skill discovery for Claude Code. 11 hook events, persistent agent memory, memory hygiene, MCP resources.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://digindominic.me/cortex/">
   <meta name="twitter:card" content="summary_large_image">
@@ -25,7 +25,7 @@
     "@type": "SoftwareApplication",
     "name": "cortex",
     "alternateName": ["cortex-agents", "claude code memory plugin", "claude code auto agents"],
-    "description": "Self-evolving vector memory, auto-generated agents, and auto-skill discovery for Claude Code. 10-hook lifecycle covering session start to end, persistent agent memory, auto-skill generation from tech stack detection, memory hygiene with dedup and consolidation, MCP resources, and automatic agent fleet management.",
+    "description": "Self-evolving vector memory, auto-generated agents, and auto-skill discovery for Claude Code. 11-hook lifecycle covering session start to end, persistent agent memory, auto-skill generation from tech stack detection, knowledge base caching, memory hygiene with dedup and consolidation, MCP resources, and automatic agent fleet management.",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Linux, macOS, Windows",
     "programmingLanguage": ["Bash", "Python"],
@@ -36,7 +36,7 @@
     "isAccessibleForFree": true,
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "featureList": [
-      "10 hook events covering full session lifecycle",
+      "11 hook events covering full session lifecycle",
       "Auto-skill discovery: detects 50+ frameworks and generates slash-command skills",
       "Manual /cortex discover with WebSearch for deeper framework research",
       "Project-aware first-message context injection",
@@ -50,7 +50,10 @@
       "Remember-keyword detection with boosted recall thresholds",
       "Progressive disclosure: 250-char summaries with on-demand full content",
       "Global behavioral rules: CLAUDE.md + rules/ config templates",
-      "Safety: audit log, content limits, soft delete, hard caps"
+      "Safety: audit log, content limits, soft delete, hard caps",
+      "Knowledge base caching: auto-download framework docs on session start",
+      "Feature configuration: toggle auto_learn, auto_skills, auto_agents, auto_docs, notify",
+      "ChromaDB health monitoring in status line"
     ]
   }
   </script>
@@ -197,18 +200,18 @@
       <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT">
       <img src="https://img.shields.io/badge/Python-3.8+-blue?style=flat-square&logo=python&logoColor=white" alt="Python">
       <img src="https://img.shields.io/badge/ChromaDB-Vector_Store-orange?style=flat-square" alt="ChromaDB">
-      <img src="https://img.shields.io/badge/Hooks-10_events-blueviolet?style=flat-square" alt="10 Hooks">
+      <img src="https://img.shields.io/badge/Hooks-11_events-blueviolet?style=flat-square" alt="11 Hooks">
     </div>
     <img src="logo.svg" alt="cortex" style="width: 340px; margin-bottom: 0.5rem;">
     <p class="tagline">
       The first Claude Code plugin where <span class="highlight">agents write their own agents</span> and <span class="highlight">skills auto-generate</span> from your tech stack.
-      Persistent vector memory, 10-hook lifecycle, self-managing agent fleets, and auto-skill discovery.
+      Persistent vector memory, 11-hook lifecycle, self-managing agent fleets, and auto-skill discovery.
     </p>
     <div class="stats">
-      <div class="stat"><div class="num">10</div><div class="label">Hook Events</div></div>
-      <div class="stat"><div class="num">13</div><div class="label">Hook Scripts</div></div>
+      <div class="stat"><div class="num">11</div><div class="label">Hook Events</div></div>
+      <div class="stat"><div class="num">14</div><div class="label">Hook Scripts</div></div>
       <div class="stat"><div class="num">50+</div><div class="label">Frameworks</div></div>
-      <div class="stat"><div class="num">6</div><div class="label">MCP Tools</div></div>
+      <div class="stat"><div class="num">7</div><div class="label">MCP Tools</div></div>
       <div class="stat"><div class="num">4</div><div class="label">MCP Resources</div></div>
     </div>
     <div class="cta-row">
@@ -270,6 +273,16 @@
         <h3>Persistent Agent Memory</h3>
         <p>All agents have <code>memory: user</code> or <code>memory: project</code> scope. They accumulate knowledge across sessions in their own MEMORY.md files.</p>
       </div>
+      <div class="feature">
+        <div class="icon">📖</div>
+        <h3>Knowledge Base Caching</h3>
+        <p>Auto-downloads framework documentation to <code>~/.claude/docs/</code> on session start. Toggle with <code>/cortex config auto_docs false</code>. Cached docs are free to read — no API calls needed.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">⚙️</div>
+        <h3>Feature Configuration</h3>
+        <p>Toggle features via <code>/cortex config</code>: auto_learn, auto_skills, auto_agents, auto_docs, notify. Status shown in real-time on the status line with ✓/✗ indicators.</p>
+      </div>
     </div>
 
     <div class="section">
@@ -279,7 +292,8 @@
   <span class="arrow">├──</span> <span class="new">cleanup.sh</span>          prune stale data
   <span class="arrow">├──</span> <span class="new">agent_bootstrap.sh</span>  create agents from cortex (daily)
   <span class="arrow">├──</span> <span class="new">memory_hygiene.sh</span>   dedup + consolidate (daily)
-  <span class="arrow">└──</span> <span class="new">skill_discover.sh</span>   detect tech stack + generate skills (weekly)
+  <span class="arrow">├──</span> <span class="new">skill_discover.sh</span>   detect tech stack + generate skills (weekly)
+  <span class="arrow">└──</span> <span class="new">knowledge_fetch.sh</span>  auto-download framework docs (async)
 
 <span class="step">Every Message</span>
   <span class="arrow">└──</span> <span class="new">recall.sh</span>           smart recall + keyword boost + progressive disclosure
@@ -318,7 +332,7 @@
             <tr><td>SubagentStart</td><td>agent_context_inject.sh</td><td>Inject domain memories into spawned agents</td></tr>
             <tr><td>PreCompact</td><td>compact_save.sh</td><td>Extract memories + create/evaluate agents</td></tr>
             <tr><td>PostCompact</td><td>post_compact_save.sh</td><td>Extract from compressed summary</td></tr>
-            <tr><td>SessionStart (x4)</td><td>cleanup + bootstrap + hygiene + skill_discover</td><td>Prune, create agents, dedup memories, generate skills</td></tr>
+            <tr><td>SessionStart (x5)</td><td>cleanup + bootstrap + hygiene + skill_discover + knowledge_fetch</td><td>Prune, create agents, dedup memories, generate skills, cache docs</td></tr>
             <tr><td>SessionEnd</td><td>session_end_cleanup.sh</td><td>Save session summary + cleanup</td></tr>
             <tr><td>Stop (x2)</td><td>learn + fleet_eval_stop</td><td>Block stop to save learnings via MCP + fleet health check</td></tr>
           </tbody>
@@ -353,9 +367,11 @@ cp ~/.claude/skills/cortex/config/cortex-memory.md ~/.claude/rules/cortex-memory
       </div>
       <div class="install-block">
         <h3>5. Restart Claude Code</h3>
-        <pre>🧠 85 memories (39 project, 17 feedback, 18 reference, 1 user) across 4 projects
-🤖 10 agents (5 project + 5 global) | 5 spawns today | health 4.2/5
-📚 3 skills (2 project + 1 global)</pre>
+        <pre>🧠 44 memories (7 project, 3 feedback, 6 prefs, 26 reference, 2 user) across 2 projects
+🤖 16 agents (11 project + 5 global) | 17 spawns today
+📚 13 skills (10 project + 3 global)
+📖 4 doc caches
+⚙ chromadb:✓ | learn:✓ skills:✓ agents:✓ docs:✓ notify:✓</pre>
       </div>
     </div>
 
@@ -372,7 +388,7 @@ cp ~/.claude/skills/cortex/config/cortex-memory.md ~/.claude/rules/cortex-memory
         </div>
         <div class="safety-item">
           <h4>Content Limits</h4>
-          <p>Max 5000 chars per memory, 200 total memories, agent hard caps</p>
+          <p>Max 5000 chars per memory, unlimited storage, agent hard caps</p>
         </div>
         <div class="safety-item">
           <h4>No Age Deletion</h4>

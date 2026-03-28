@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License">
   <img src="https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.8+">
   <img src="https://img.shields.io/badge/ChromaDB-Vector_Store-orange?style=for-the-badge" alt="ChromaDB">
-  <img src="https://img.shields.io/badge/Hooks-10_events-blueviolet?style=for-the-badge" alt="10 Hook Events">
+  <img src="https://img.shields.io/badge/Hooks-11_events-blueviolet?style=for-the-badge" alt="11 Hook Events">
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey?style=for-the-badge" alt="Platform">
 </p>
 
@@ -38,14 +38,17 @@ cortex gives Claude Code **persistent memory across sessions** and **self-managi
 - **Memories** are stored as vector embeddings in ChromaDB and silently injected into Claude's context
 - **Agents** are automatically created from accumulated knowledge, evaluated on usage, and retired when obsolete
 - **Skills** are auto-discovered from your project's tech stack and generated as slash commands with best practices baked in
-- **10 hook events** cover the entire session lifecycle — from startup to shutdown
+- **Knowledge base** — framework docs auto-downloaded to `~/.claude/docs/` on session start for offline reference
+- **Config system** — toggle features on/off via `~/.claude/.cortex_config` JSON file
+- **11 hook events** cover the entire session lifecycle — from startup to shutdown
 - **Multi-project** aware — memories are scoped per project, agents and skills exist at project and global levels
 
 ```
-🧠 85 memories (39 project, 17 feedback, 18 reference, 1 user) across 4 projects
-🤖 10 agents (5 project + 5 global) | 5 spawns today | health 4.2/5
-📚 3 skills (2 project + 1 global)
-⚡ loaded 31 memories (session start)
+🧠 44 memories (7 project, 3 feedback, 6 prefs, 26 reference, 2 user) across 2 projects
+🤖 16 agents (11 project + 5 global) | 17 spawns today
+📚 13 skills (10 project + 3 global)
+📖 4 doc caches
+⚙ chromadb:✓ | learn:✓ skills:✓ agents:✓ docs:✓ notify:✓
 ```
 
 ---
@@ -73,6 +76,8 @@ pip install chromadb
 ```
 
 ChromaDB will also install `onnxruntime` (for embeddings) and `numpy`. No GPU required — CPU embeddings are fast enough.
+
+**Recommended: Run ChromaDB as a systemd user service** on `localhost:8100` using the v2 API. See `config/chromadb-service.md` for setup instructions. The v1 API is deprecated.
 
 ### Step 3: Initialize Database
 
@@ -119,6 +124,7 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
       "mcp__cortex__memory_list",
       "mcp__cortex__memory_delete",
       "mcp__cortex__memory_update",
+      "mcp__cortex__memory_merge",
       "mcp__cortex__memory_stats"
     ]
   },
@@ -236,6 +242,16 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
             "async": true
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "nice -n 15 ionice -c 3 bash ~/.claude/skills/cortex/knowledge_fetch.sh 2>/dev/null",
+            "statusMessage": "Checking framework documentation...",
+            "async": true
+          }
+        ]
       }
     ],
     "SessionEnd": [
@@ -322,7 +338,8 @@ Session Start
   ├── cleanup.sh          → prune stale data (async)
   ├── agent_bootstrap.sh  → create agents from cortex knowledge (async, daily)
   ├── memory_hygiene.sh   → dedup, validate paths, consolidate (async, daily)
-  └── skill_discover.sh   → detect tech stack + generate skill commands (async, weekly)
+  ├── skill_discover.sh   → detect tech stack + generate skill commands (async, weekly)
+  └── knowledge_fetch.sh  → auto-download framework docs to ~/.claude/docs/ (async)
 
 Every Message
   └── recall.sh           → inject relevant memories into Claude's context
@@ -459,6 +476,7 @@ Unlike the automatic path (which uses LLM knowledge only), the manual command us
 | `SessionStart` | `agent_bootstrap.sh` | Async | Bootstrap agents from cortex (daily) |
 | `SessionStart` | `memory_hygiene.sh` | Async | Dedup, path validation, consolidation (daily) |
 | `SessionStart` | `skill_discover.sh` | Async | Auto-detect tech stack + generate skill commands (weekly) |
+| `SessionStart` | `knowledge_fetch.sh` | Async | Auto-download framework docs to `~/.claude/docs/` |
 | `SessionEnd` | `session_end_cleanup.sh` | Sync | Save session summary + cleanup |
 | `Stop` | `learn.sh` | Sync | Block stop + give Claude a turn to save learnings via MCP |
 | `Stop` | `fleet_eval_stop.sh` | Sync | Lightweight fleet health check |
@@ -490,7 +508,7 @@ Agents are created from two sources:
 On every PreCompact, the system:
 - **Scores** each agent 1-5 based on relevance, quality, and usage data
 - **Updates** agents with stale instructions (creates `.bak` backup first)
-- **Retires** low-scoring agents (extracts knowledge to cortex, moves to `.retired/`)
+- **Retires** low-scoring agents (extracts knowledge to cortex, moves to `~/.claude/.retired-agents/`)
 
 ### Persistent Agent Memory
 
@@ -570,9 +588,15 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 | `/cortex stats` | Database statistics |
 | `/cortex delete <id>` | Delete a memory (archived to audit log) |
 | `/cortex update <id>` | Update a memory |
+| `/cortex merge <id1,id2,...>` | Merge related memories into one |
 | `/cortex agents` | Fleet health dashboard |
 | `/cortex discover` | Auto-detect tech stack + generate skill commands with web research |
 | `/cortex learn` | Review session and extract learnings to memory |
+| `/cortex config [key] [value]` | Toggle feature flags (auto_learn, auto_skills, auto_agents, auto_docs, notify) |
+| `/cortex docs` | Show doc cache status (frameworks, freshness, file counts) |
+| `/cortex docs fetch <name>` | Download docs for a framework |
+| `/cortex docs refresh` | Refresh all stale doc caches |
+| `/cortex docs clear [name]` | Clear doc cache for one or all frameworks |
 
 ---
 
@@ -601,6 +625,7 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │   ├── memory_hygiene.sh          # SessionStart: dedup, validate, consolidate
 │   ├── cleanup.sh                 # SessionStart: prune stale data
 │   ├── skill_discover.sh          # SessionStart: auto-detect tech stack + generate skills
+│   ├── knowledge_fetch.sh         # SessionStart: auto-download framework docs
 │   ├── learn.sh                   # Stop: block stop + save learnings via decision:block
 │   ├── fleet_eval_stop.sh         # Stop: lightweight fleet health check
 │   ├── session_end_cleanup.sh     # SessionEnd: save summary + cleanup
@@ -610,15 +635,15 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │   ├── edit_track.sh              # PostToolUse(Edit,Write): track file modifications (optional)
 │   ├── agent_dashboard.py         # /cortex agents command
 │   ├── statusline.sh              # Multi-line status bar
-│   ├── mcp_server.py              # MCP server: 6 tools + 4 resources
+│   ├── mcp_server.py              # MCP server: 7 tools + 4 resources
 │   ├── memory_db.py               # ChromaDB CLI wrapper
 │   ├── SKILL.md                   # Skill definition for /cortex
 │   ├── test.sh                    # Test suite
 │   ├── config/
 │   │   ├── CLAUDE.md              # Global behavioral rules → ~/.claude/CLAUDE.md
 │   │   ├── cortex-memory.md       # Memory rules → ~/.claude/rules/cortex-memory.md
-│   │   └── skill-discovery.md     # Skill discovery rules → ~/.claude/rules/skill-discovery.md
-│   ├── .retired/                  # Retired agents (outside agents/ to avoid Claude discovery)
+│   │   ├── skill-discovery.md     # Skill discovery rules → ~/.claude/rules/skill-discovery.md
+│   │   └── chromadb-service.md    # ChromaDB systemd service setup guide
 │   └── lib/
 │       ├── parse_transcript.py    # Transcript JSONL parser
 │       ├── store_memories.py      # Memory storage with dedup
@@ -630,7 +655,10 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │       ├── collect_usage.py       # Usage ledger reader
 │       ├── collect_memories.py    # ChromaDB memory reader
 │       ├── skill_detect.py        # Tech stack detector (50+ frameworks)
-│       └── skill_create.py        # Skill .md file writer with safety caps
+│       ├── skill_create.py        # Skill .md file writer with safety caps
+│       ├── chroma_client.py       # ChromaDB client (v2 API, localhost:8100)
+│       ├── knowledge_fetch.py     # Framework doc downloader
+│       └── knowledge_cache.py     # Doc cache management
 ├── cortex-db/              # ChromaDB persistent storage
 ├── agent-usage.jsonl              # Agent spawn ledger
 ├── .cortex_activity                 # Live activity indicator
@@ -638,6 +666,10 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 ├── .cortex_recall_log               # Recall tracking for hygiene
 ├── .cortex_ops_log.jsonl            # PreToolUse operation log
 ├── .cortex_sessions.jsonl           # Session start/end markers
+├── .cortex_config                   # Feature toggles JSON (auto_learn, auto_skills, etc.)
+├── .retired-agents/               # Retired agents (outside git dirs to avoid discovery)
+├── docs/                          # Cached framework documentation
+│   └── <framework>/               # Raw markdown docs per framework
 └── agents/
     └── *.md                       # Active global agents (memory: user)
 ```
@@ -651,7 +683,6 @@ Project-level agents live at `<project>/.claude/agents/*.md` with `memory: proje
 | Protection | Implementation |
 |---|---|
 | **Content size limit** | Max 5000 chars per memory |
-| **Database cap** | Max 200 total memories |
 | **Audit trail** | All store/update/delete operations logged to `.cortex_audit.jsonl` |
 | **Soft delete** | Deleted memory content archived to audit log before removal |
 | **Merge tracking** | Merged memories tagged with `merged_from` ID |
@@ -663,13 +694,16 @@ Project-level agents live at `<project>/.claude/agents/*.md` with `memory: proje
 | **Agent filename sanitization** | Only `[a-z0-9\-_.]` allowed |
 | **Semantic dedup** | 0.55 threshold for agents, 0.15 for memories, 0.35 for hygiene merges |
 | **Backup before update** | Timestamped `.bak` files before agent overwrites |
-| **Soft retire** | Agents moved to cortex `.retired/` (outside `agents/` to avoid Claude Code discovery) |
+| **Soft retire** | Agents moved to `~/.claude/.retired-agents/` (outside git dirs to avoid Claude Code discovery) |
 | **Skill hard caps** | Max 10 project + 10 global skills, 5 per discovery run |
 | **Skill overwrite protection** | Never overwrites existing skill files |
 | **Daily cooldowns** | Bootstrap + hygiene run max once per project per day |
 | **Weekly cooldowns** | Skill discovery runs max once per project per week |
 | **Operation logging** | Every cortex tool call logged via PreToolUse hook |
 | **Auto project tagging** | PreToolUse enriches memory_store with project from cwd |
+| **Process locks** | learn.sh and cleanup.sh use file locks to prevent concurrent runs |
+| **Ops log rotation** | `.cortex_ops_log.jsonl` rotated at 500KB |
+| **Safe JSON encoding** | Session end cleanup escapes content to prevent injection |
 
 ---
 
