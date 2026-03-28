@@ -11,15 +11,23 @@ When the user asks about past conversations, prior decisions, or uses phrases li
 ## Proactive Storage
 
 Store memories when you observe:
-- User corrections or preferences (type: feedback)
+- User corrections or approach rules (type: feedback)
+- Configuration choices, workflow preferences, tool settings (type: preferences)
 - Project decisions, constraints, or deadlines (type: project)
 - External resource locations — URLs, file paths, credentials config (type: reference)
 - New information about the user's role or expertise (type: user)
+
+**Type distinction:**
+- `feedback` = "don't do X" / "always do Y" — corrections and rules
+- `preferences` = "I prefer X" / "use Y for Z" — configuration choices and defaults
+- `user` = "I am X" / "I know Y" — identity and expertise
 
 Always include a `project` tag when the memory is project-specific.
 
 ## Memory Hygiene
 
 - Before storing, search for existing similar memories to avoid duplicates
-- Use descriptive `memory_id` values (e.g., `feedback_no_mocks_in_tests`, `reference_gitlab_api`)
+- When a near-duplicate is found, use `memory_update` (mode=append or replace) instead of creating new
+- When 3+ memories cover the same topic, use `memory_merge` to consolidate
+- Use descriptive `memory_id` values (e.g., `pref_notify_off`, `feedback_no_mocks_in_tests`)
 - Keep content concise — under 1000 chars when possible, max 5000

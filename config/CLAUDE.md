@@ -4,25 +4,109 @@
 
 A persistent vector memory system (cortex) is available via MCP tools. It stores knowledge across sessions and projects using ChromaDB semantic search.
 
+### MCP Tools
+
+- `memory_store` — Store with auto dedup detection (warns if >85% similar memory exists)
+- `memory_search` — Semantic search (shows similarity %)
+- `memory_update` — Update content (modes: replace/append/prepend) or metadata (tags: "+tag" to append)
+- `memory_merge` — Consolidate 2+ related memories into one
+- `memory_list`, `memory_delete`, `memory_stats`
+
+### Memory Types
+
+- `user` — Role, expertise, identity ("I am X", "I know Y")
+- `feedback` — Corrections, rules ("don't do X", "always do Y")
+- `preferences` — Config choices, workflow settings ("I prefer X", "use Y for Z")
+- `project` — Decisions, architecture, constraints
+- `reference` — External resources, URLs, configs, service endpoints
+
 ### Behavioral Rules
 
-- When the user asks "do you remember", "recall", "do you know about", or references past conversations — ALWAYS call `mcp__cortex__memory_search` BEFORE saying you don't have the information. Never say "I don't have a specific memory stored" without searching first.
-- The `UserPromptSubmit` hook auto-injects relevant memories as context, but it may miss some due to semantic distance thresholds. When the auto-injected context doesn't cover the user's question, search manually.
-- When you learn something new about the user, their project, workflow, or preferences that would be useful in future sessions, store it in cortex using `mcp__cortex__memory_store` with an appropriate `memory_type` (user, feedback, project, reference).
-- Use `/cortex learn` at end of productive sessions to extract and store learnings.
+- When the user asks "do you remember", "recall", or references past conversations — ALWAYS call `mcp__cortex__memory_search` BEFORE saying you don't have the information.
+- The `UserPromptSubmit` hook auto-injects relevant memories, but may miss some. Search manually when needed.
+- Store new learnings proactively — distinguish between feedback (corrections), preferences (config choices), and user (identity).
+- Before storing, the tool auto-checks for near-duplicates. If warned, use `memory_update` instead.
+- When 3+ memories cover the same topic, use `memory_merge` to consolidate.
+
+### Slash Commands
+
+- `/cortex store|search|list|delete|update|stats` — Direct memory operations
+- `/cortex merge <id1,id2,...>` — Merge related memories
+- `/cortex discover` — Deep skill discovery with web research
+- `/cortex addskill <description>` — Create a new slash-command skill
+- `/cortex agents` — Agent fleet dashboard
+- `/cortex config [key] [value]` — Toggle notify, auto_learn, auto_skills, auto_agents
+- `/cortex learn` — Manual session review
 
 ## Specialized Agents
 
-Project-specific agents are available in `.claude/agents/`. When a task matches an agent's description, prefer using it over the general-purpose agent — specialized agents have domain knowledge and cortex memories injected automatically via the SubagentStart hook.
+Project-specific agents are available in `.claude/agents/`. Global agents in `~/.claude/agents/`. The first-message recall hook injects the full inventory (name + description) so you know what's available.
 
-## Auto-Skill Discovery
+- **Prefer specialized agents** over general-purpose when a task matches an agent's description — they have domain knowledge and cortex memories injected via the SubagentStart hook.
+- Agents are also auto-created from session patterns at session end (via learn.sh). Duplicate detection via semantic similarity (cosine distance < 0.55) prevents redundancy.
 
-Cortex automatically detects project tech stacks (FastAPI, Next.js, Flask, etc.) on session start and generates slash-command skill files (`.md`) in `.claude/commands/` (project) or `~/.claude/commands/` (global). These skills encode framework-specific best practices and are immediately available as `/command-name`.
+### Creating Agents Inline
 
-### Behavioral Rules
+When you spot a recurring pattern that would benefit from a specialized agent, create one directly:
 
-- When starting work in a project, check if auto-discovered skills exist in `.claude/commands/`. If they do, mention them briefly so the user knows they're available (e.g., "This project has auto-discovered skills: `/flask-endpoint`, `/flask-test`").
-- When the user asks about available skills or commands, include auto-discovered ones.
-- If the user wants deeper, web-researched skills, suggest `/cortex discover` — it uses WebSearch for current best practices unlike the automatic path which uses LLM knowledge only.
-- Auto-discovered skills have a weekly cooldown per project. If the user wants to regenerate, `/cortex discover` bypasses cooldown.
-- The detection system covers: Node.js (Next.js, React, Vue, Express, etc.), Python (FastAPI, Django, Flask, etc.), Go, Rust, Ruby, Java, and infrastructure tools (Docker, K8s, Terraform, CI/CD).
+1. Write the `.md` file to the appropriate directory:
+   - **Project-specific**: `.claude/agents/<name>.md` — references project files, services, architecture
+   - **Global/reusable**: `~/.claude/agents/<name>.md` — generic specialist across projects
+2. Use this frontmatter format:
+   ```yaml
+   ---
+   name: <Display Name>
+   description: <When to use this agent — one line>
+   model: sonnet
+   ---
+
+   <System prompt with detailed instructions>
+   ```
+3. Update cortex inventory: `mcp__cortex__memory_update` on `inventory_agents` (mode=append) with the new agent entry. This keeps the inventory searchable across sessions.
+
+## Skills (Slash Commands)
+
+Skills are slash-command `.md` files in `.claude/commands/` (project) or `~/.claude/commands/` (global). The first-message recall hook injects the full inventory so you know what's available.
+
+- **Use skills proactively** — when a task matches an available skill, suggest or invoke it.
+- Skills are also auto-discovered from project tech stacks on session start, and improved at session end via learn.sh.
+- For deeper, web-researched skills, suggest `/cortex discover`.
+
+### Creating Skills Inline
+
+When you identify a reusable multi-step workflow, create a skill directly:
+
+1. Write the `.md` file:
+   - **Project-specific**: `.claude/commands/<skill-name>.md`
+   - **Global**: `~/.claude/commands/<skill-name>.md`
+2. Use this format:
+   ```yaml
+   ---
+   description: <One-line description shown in command palette>
+   ---
+
+   <Detailed instructions for Claude when invoked>
+   $ARGUMENTS captures user input after the command name.
+   ```
+3. Update cortex inventory: `mcp__cortex__memory_update` on `inventory_skills` (mode=append) with the new skill entry. This keeps the inventory searchable across sessions.
+
+### Placement Rules
+- **Local** (`.claude/commands/`): References project-specific paths, containers, tables, architecture
+- **Global** (`~/.claude/commands/`): Generic CLI wrappers, cross-project utilities
+
+## Knowledge Base (Cached Documentation)
+
+Cortex automatically downloads full framework documentation to `~/.claude/docs/` on session start. The first-message injection lists available caches.
+
+### Usage Rules
+- When answering framework questions, **check cached docs first** by reading files from `~/.claude/docs/<framework>/`
+- Cached docs are complete raw markdown — use the `Read` tool to access specific files
+- If docs are not cached, use context7 MCP tools (`resolve-library-id` then `query-docs`)
+- Prefer cached docs over context7 — they're complete, unprocessed, and free to read
+- The subsequent-message recall will highlight relevant cached docs when you mention a framework
+
+### Commands
+- `/cortex docs` — show cache status (which frameworks, freshness, file counts)
+- `/cortex docs fetch <name>` — manually download docs for a framework
+- `/cortex docs refresh` — refresh all stale caches
+- `/cortex docs clear [name]` — clear cache for one or all frameworks
