@@ -150,6 +150,46 @@ if count == 0: exit(0)
 print(f'{count} doc caches')
 " 2>/dev/null)
 
+# ── Line 5: Health & config ──
+HEALTH_LINE=$(/usr/bin/python3 -W ignore -c "
+import json, os, subprocess
+
+config_file = os.path.expanduser('~/.claude/.cortex_config')
+try:
+    cfg = json.load(open(config_file))
+except:
+    cfg = {}
+
+# Defaults
+defaults = {
+    'auto_learn': True,
+    'auto_skills': True,
+    'auto_agents': True,
+    'auto_docs': True,
+    'notify': True,
+}
+
+# ChromaDB status
+db_ok = False
+try:
+    import urllib.request
+    r = urllib.request.urlopen('http://localhost:8100/api/v2/heartbeat', timeout=1)
+    db_ok = r.status == 200
+except:
+    pass
+
+# Build toggle display
+toggles = []
+for key in ['auto_learn', 'auto_skills', 'auto_agents', 'auto_docs', 'notify']:
+    val = cfg.get(key, defaults[key])
+    short = key.replace('auto_', '').replace('notify', 'notify')
+    symbol = '\u2713' if val else '\u2717'
+    toggles.append(f'{short}:{symbol}')
+
+db_status = 'chromadb:\u2713' if db_ok else 'chromadb:\u2717'
+print(f'{db_status} | {\" \".join(toggles)}')
+" 2>/dev/null)
+
 # ── Line 4: Today's operations ──
 OPS_LINE=""
 if [ -f "$OPS_LOG" ]; then
@@ -185,6 +225,10 @@ fi
 
 if [ -n "$DOCS_LINE" ]; then
     OUTPUT="${OUTPUT}\n\U0001f4d6 ${DOCS_LINE}"
+fi
+
+if [ -n "$HEALTH_LINE" ]; then
+    OUTPUT="${OUTPUT}\n\U00002699 ${HEALTH_LINE}"
 fi
 
 # Combine ops + activity on one line if both exist
