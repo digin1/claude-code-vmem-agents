@@ -38,7 +38,12 @@ fi
 # ============================================================
 # PHASE 1: Extract memories
 # ============================================================
-SUMMARY=$(echo "$CONTEXT" | claude -p --bare "You are a memory extraction system. From this conversation excerpt, extract ONLY items worth remembering for future sessions. Output valid JSON array. Each item: {\"type\": \"feedback|project|reference\", \"id\": \"short_snake_id\", \"content\": \"one sentence\", \"tags\": \"comma,separated\"}.
+PROJECT_NAME=""
+if [ -n "$CWD" ]; then
+    PROJECT_NAME=$(basename "$CWD")
+fi
+
+SUMMARY=$(echo "$CONTEXT" | claude -p --bare --no-session-persistence "You are a memory extraction system. From this conversation excerpt, extract ONLY items worth remembering for future sessions. Output valid JSON array. Each item: {\"type\": \"feedback|project|reference\", \"id\": \"short_snake_id\", \"content\": \"one sentence\", \"tags\": \"comma,separated\", \"project\": \"${PROJECT_NAME:-}\"}.
 
 Rules:
 - feedback: user corrections, preferences, workflow rules
@@ -76,7 +81,7 @@ $EXISTING_NAMES
 $USAGE_STATS
 
 ---MEMORIES (includes retired agent knowledge)---
-$MEMORIES" | claude -p --bare "You identify reusable workflow patterns from development sessions that should become Claude Code subagents.
+$MEMORIES" | claude -p --bare --no-session-persistence "You identify reusable workflow patterns from development sessions that should become Claude Code subagents.
 
 Create new agents when:
 - A workflow was repeated 3+ times (deploy, test, review pattern)
@@ -113,7 +118,7 @@ $EXISTING_AGENTS_JSON
 $USAGE_STATS
 
 ---SESSION CONTEXT---
-$CONTEXT" | claude -p --bare "You evaluate and reconcile an existing fleet of Claude Code subagents.
+$CONTEXT" | claude -p --bare --no-session-persistence "You evaluate and reconcile an existing fleet of Claude Code subagents.
 
 For each agent, assess:
 1. **Relevance**: Is it still useful given the session context and usage stats?

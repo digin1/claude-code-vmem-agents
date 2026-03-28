@@ -142,10 +142,27 @@ TOPICS=$(echo "$SHOULD_LEARN" | /usr/bin/python3 -c "import sys,json; print(json
     fi
 
     # Extract learnings via claude -p
+    # Fetch existing memory IDs so haiku can avoid duplicates
+    EXISTING_IDS=$(/usr/bin/python3 -W ignore -c "
+import sys, os
+sys.path.insert(0, os.path.expanduser('~/.claude/skills/cortex/lib'))
+from chroma_client import get_collection
+try:
+    col = get_collection()
+    data = col.get(include=['metadatas'])
+    ids = [data['ids'][i] for i in range(len(data['ids']))
+           if data['metadatas'][i].get('project','') in ('', '${PROJECT_NAME:-}', 'global')]
+    print(', '.join(ids[:50]))
+except: print('')
+" 2>/dev/null)
+
     LEARNINGS=$(echo "$CONTEXT" | claude -p --bare --no-session-persistence --model haiku "
 Extract learnings from this coding session for a persistent memory system.
 Project: ${PROJECT_NAME:-unknown} (dir: ${CWD:-unknown})
 Topics discussed: ${TOPICS:-unknown}
+
+EXISTING MEMORY IDS (do NOT duplicate these topics):
+${EXISTING_IDS:-none}
 
 Output a JSON array of memories to store. Each memory object:
 {\"type\": \"feedback|project|reference|user\", \"id\": \"descriptive_snake_case_id\", \"content\": \"the learning (max 500 chars)\", \"tags\": \"comma,separated\", \"project\": \"${PROJECT_NAME:-}\"}
@@ -153,6 +170,7 @@ Output a JSON array of memories to store. Each memory object:
 Rules:
 - Only extract NON-OBVIOUS learnings that would help in future sessions
 - Skip ephemeral details, task progress, or things derivable from code
+- Check existing memory IDs above — skip if a similar topic is already stored
 - Types: feedback (user corrections/preferences), project (decisions/architecture), reference (external resources/configs), user (role/expertise)
 - Max 5 learnings. If nothing notable, output: []
 - Output ONLY the JSON array, no markdown fences or explanation
@@ -276,7 +294,7 @@ An agent is a reusable specialist with a system prompt, used via the Agent tool.
 Look for: repeated domain-specific tasks that benefit from focused context injection (e.g., debugging a specific subsystem, managing a specific workflow, analyzing specific data).
 
 Output a JSON array of agents to create. Each object:
-{\"filename\": \"agent-name.md\", \"scope\": \"project|user\", \"content\": \"---\nname: agent-name\ndescription: When to use this agent\nmodel: sonnet\n---\n\nSystem prompt with detailed instructions...\"}
+{\"filename\": \"agent-name.md\", \"scope\": \"project|user\", \"content\": \"---\nname: agent-name\ndescription: When to use this agent\nmodel: opus\n---\n\nSystem prompt with detailed instructions...\"}
 
 Scope rules:
 - project: domain-specific to this codebase (references project files, services, architecture)
