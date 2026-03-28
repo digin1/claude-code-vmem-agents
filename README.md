@@ -38,7 +38,7 @@ cortex gives Claude Code **persistent memory across sessions** and **self-managi
 - **Memories** are stored as vector embeddings in ChromaDB and silently injected into Claude's context
 - **Agents** are automatically created from accumulated knowledge, evaluated on usage, and retired when obsolete
 - **Skills** are auto-discovered from your project's tech stack and generated as slash commands with best practices baked in
-- **Knowledge base** — framework docs auto-downloaded to `~/.claude/docs/` on session start for offline reference
+- **Research learner** — on-demand agent that web-searches, distills, and stores knowledge as cortex memories when Claude hits a gap
 - **Config system** — toggle features on/off via `~/.claude/.cortex_config` JSON file
 - **11 hook events** cover the entire session lifecycle — from startup to shutdown
 - **Multi-project** aware — memories are scoped per project, agents and skills exist at project and global levels
@@ -47,8 +47,7 @@ cortex gives Claude Code **persistent memory across sessions** and **self-managi
 🧠 44 memories (7 project, 3 feedback, 6 prefs, 26 reference, 2 user) across 2 projects
 🤖 16 agents (11 project + 5 global) | 17 spawns today
 📚 13 skills (10 project + 3 global)
-📖 4 doc caches
-⚙ chromadb:✓ | learn:✓ skills:✓ agents:✓ docs:✓ notify:✓
+⚙ chromadb:✓ | learn:✓ skills:✓ agents:✓ notify:✓
 ```
 
 ---
@@ -243,16 +242,6 @@ Add the following to your `~/.claude/settings.json` (merge with any existing set
           }
         ]
       },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "nice -n 15 ionice -c 3 bash ~/.claude/skills/cortex/knowledge_fetch.sh 2>/dev/null",
-            "statusMessage": "Checking framework documentation...",
-            "async": true
-          }
-        ]
-      }
     ],
     "SessionEnd": [
       {
@@ -339,8 +328,6 @@ Session Start
   ├── agent_bootstrap.sh  → create agents from cortex knowledge (async, daily)
   ├── memory_hygiene.sh   → dedup, validate paths, consolidate (async, daily)
   ├── skill_discover.sh   → detect tech stack + generate skill commands (async, weekly)
-  └── knowledge_fetch.sh  → auto-download framework docs to ~/.claude/docs/ (async)
-
 Every Message
   └── recall.sh           → inject relevant memories into Claude's context
                             First message: comprehensive project load (all memories)
@@ -476,7 +463,6 @@ Unlike the automatic path (which uses LLM knowledge only), the manual command us
 | `SessionStart` | `agent_bootstrap.sh` | Async | Bootstrap agents from cortex (daily) |
 | `SessionStart` | `memory_hygiene.sh` | Async | Dedup, path validation, consolidation (daily) |
 | `SessionStart` | `skill_discover.sh` | Async | Auto-detect tech stack + generate skill commands (weekly) |
-| `SessionStart` | `knowledge_fetch.sh` | Async | Auto-download framework docs to `~/.claude/docs/` |
 | `SessionEnd` | `session_end_cleanup.sh` | Sync | Save session summary + cleanup |
 | `Stop` | `learn.sh` | Sync | Block stop + give Claude a turn to save learnings via MCP |
 | `Stop` | `fleet_eval_stop.sh` | Sync | Lightweight fleet health check |
@@ -592,11 +578,7 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 | `/cortex agents` | Fleet health dashboard |
 | `/cortex discover` | Auto-detect tech stack + generate skill commands with web research |
 | `/cortex learn` | Review session and extract learnings to memory |
-| `/cortex config [key] [value]` | Toggle feature flags (auto_learn, auto_skills, auto_agents, auto_docs, notify) |
-| `/cortex docs` | Show doc cache status (frameworks, freshness, file counts) |
-| `/cortex docs fetch <name>` | Download docs for a framework |
-| `/cortex docs refresh` | Refresh all stale doc caches |
-| `/cortex docs clear [name]` | Clear doc cache for one or all frameworks |
+| `/cortex config [key] [value]` | Toggle feature flags (auto_learn, auto_skills, auto_agents, notify) |
 
 ---
 
@@ -625,7 +607,6 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │   ├── memory_hygiene.sh          # SessionStart: dedup, validate, consolidate
 │   ├── cleanup.sh                 # SessionStart: prune stale data
 │   ├── skill_discover.sh          # SessionStart: auto-detect tech stack + generate skills
-│   ├── knowledge_fetch.sh         # SessionStart: auto-download framework docs
 │   ├── learn.sh                   # Stop: block stop + save learnings via decision:block
 │   ├── fleet_eval_stop.sh         # Stop: lightweight fleet health check
 │   ├── session_end_cleanup.sh     # SessionEnd: save summary + cleanup
@@ -657,8 +638,6 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 │       ├── skill_detect.py        # Tech stack detector (50+ frameworks)
 │       ├── skill_create.py        # Skill .md file writer with safety caps
 │       ├── chroma_client.py       # ChromaDB client (v2 API, localhost:8100)
-│       ├── knowledge_fetch.py     # Framework doc downloader
-│       └── knowledge_cache.py     # Doc cache management
 ├── cortex-db/              # ChromaDB persistent storage
 ├── agent-usage.jsonl              # Agent spawn ledger
 ├── .cortex_activity                 # Live activity indicator
@@ -668,8 +647,6 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 ├── .cortex_sessions.jsonl           # Session start/end markers
 ├── .cortex_config                   # Feature toggles JSON (auto_learn, auto_skills, etc.)
 ├── .retired-agents/               # Retired agents (outside git dirs to avoid discovery)
-├── docs/                          # Cached framework documentation
-│   └── <framework>/               # Raw markdown docs per framework
 └── agents/
     └── *.md                       # Active global agents (memory: user)
 ```
