@@ -43,13 +43,20 @@ try:
 
     with open(OPS_LOG, "a") as f:
         f.write(json.dumps(entry) + "\n")
-    # Rotate if >500KB (keep last 7 days)
+    # Rotate if >500KB (keep last 7 days) — atomic write
     if os.path.getsize(OPS_LOG) > 500_000:
+        import tempfile
         cutoff = time.strftime("%Y-%m-%d", time.localtime(time.time() - 7 * 86400))
         with open(OPS_LOG) as f:
-            lines = [l for l in f if l[16:26] >= cutoff]  # timestamp prefix
-        with open(OPS_LOG, "w") as f:
-            f.writelines(lines)
+            lines = [l for l in f if l[16:26] >= cutoff]
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(OPS_LOG))
+        try:
+            with os.fdopen(tmp_fd, "w") as f:
+                f.writelines(lines)
+            os.replace(tmp_path, OPS_LOG)
+        except Exception:
+            try: os.unlink(tmp_path)
+            except OSError: pass
 except Exception:
     pass
 

@@ -61,6 +61,13 @@ def get_collection():
     return _chroma_collection
 
 
+def _open_restricted_append(path):
+    """Open file for append with 600 permissions (owner-only read/write)."""
+    import stat
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, stat.S_IRUSR | stat.S_IWUSR)
+    return os.fdopen(fd, "a")
+
+
 def audit_log_write(action, memory_id, content_hash="", metadata=None, reason=""):
     """Append an entry to the audit log."""
     try:
@@ -74,7 +81,7 @@ def audit_log_write(action, memory_id, content_hash="", metadata=None, reason=""
         if metadata:
             entry["metadata"] = {k: v for k, v in metadata.items()
                                  if k in ("type", "project", "tags")}
-        with open(AUDIT_LOG, "a") as f:
+        with _open_restricted_append(AUDIT_LOG) as f:
             f.write(json.dumps(entry) + "\n")
     except Exception:
         pass
@@ -217,6 +224,10 @@ def memory_store(
 
     if len(content) < 10:
         return f"{_prefix()} Error: Content too short (min 10 chars)."
+
+    # Validate memory_id format
+    if memory_id and (len(memory_id) > 200 or '\n' in memory_id or '\r' in memory_id):
+        return f"{_prefix()} Error: Invalid memory_id (max 200 chars, no newlines)."
 
     collection = get_collection()
 

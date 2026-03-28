@@ -197,6 +197,13 @@ def create_agents(raw, cwd):
         os.makedirs(agent_dir, exist_ok=True)
         agent_path = os.path.join(agent_dir, filename)
 
+        # Path traversal protection
+        real_path = os.path.realpath(agent_path)
+        real_dir = os.path.realpath(agent_dir)
+        if not real_path.startswith(real_dir + os.sep):
+            print(f"[cortex fleet] Blocked path traversal: {filename}", file=sys.stderr)
+            continue
+
         if os.path.exists(agent_path):
             continue
 

@@ -24,13 +24,13 @@ REASON=$(echo "$INPUT" | /usr/bin/python3 -c "import sys,json; d=json.loads(sys.
 # ================================================================
 
 # Write session marker (use Python for safe JSON encoding)
-/usr/bin/python3 -c "
+/usr/bin/python3 - "$SESSION_ID" "$REASON" "$CWD" "$SESSIONS_LOG" 2>/dev/null <<'PYEOF'
 import json, sys, time
 ts = time.strftime('%Y-%m-%dT%H:%M:%S%z')
-entry = {'timestamp': ts, 'session_id': '$SESSION_ID', 'reason': sys.argv[1], 'cwd': sys.argv[2]}
-with open(sys.argv[3], 'a') as f:
+entry = {'timestamp': ts, 'session_id': sys.argv[1], 'reason': sys.argv[2], 'cwd': sys.argv[3]}
+with open(sys.argv[4], 'a') as f:
     f.write(json.dumps(entry) + '\n')
-" "$REASON" "$CWD" "$SESSIONS_LOG" 2>/dev/null
+PYEOF
 
 # Clean activity file
 rm -f "$ACTIVITY_FILE" 2>/dev/null
@@ -52,11 +52,13 @@ if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
 
             if [ -n "$SUMMARY" ] && [ "$SUMMARY" != "SKIP" ]; then
                 # Use python to safely JSON-encode the summary to avoid quote injection
-                SAFE_JSON=$(/usr/bin/python3 -c "
+                SESSION_TS=$(date +%Y%m%d_%H%M)
+                SAFE_JSON=$(printf '%s' "$SUMMARY" | /usr/bin/python3 -W ignore -c "
 import json, sys
 s = sys.stdin.read().strip()
-print(json.dumps([{'type':'project','id':'session_$(date +%Y%m%d_%H%M)','content':s,'tags':'session-summary,auto'}]))
-" <<< "$SUMMARY" 2>/dev/null)
+session_ts = sys.argv[1] if len(sys.argv) > 1 else 'unknown'
+print(json.dumps([{'type':'project','id':f'session_{session_ts}','content':s,'tags':'session-summary,auto'}]))
+" "$SESSION_TS" 2>/dev/null)
                 if [ -n "$SAFE_JSON" ]; then
                     "$LIB/store_memories.py" "$SAFE_JSON"
                 fi

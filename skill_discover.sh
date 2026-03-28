@@ -139,9 +139,10 @@ echo "[skill-discover] Uncovered frameworks in $PROJECT_NAME: $UNCOVERED"
 # ================================================================
 
 # Collect existing skill names + descriptions
-EXISTING_SKILLS=$(/usr/bin/python3 -W ignore -c "
-import os, glob
-for scope, d in [('project', '$CWD/.claude/commands'), ('global', os.path.expanduser('~/.claude/commands'))]:
+EXISTING_SKILLS=$(/usr/bin/python3 -W ignore - "$CWD" 2>/dev/null <<'PYEOF'
+import os, glob, sys
+cwd = sys.argv[1] if len(sys.argv) > 1 else ""
+for scope, d in [('project', os.path.join(cwd, '.claude', 'commands')), ('global', os.path.expanduser('~/.claude/commands'))]:
     if not os.path.isdir(d): continue
     for f in sorted(glob.glob(os.path.join(d, '*.md'))):
         name = os.path.basename(f).replace('.md', '')
@@ -152,13 +153,13 @@ for scope, d in [('project', '$CWD/.claude/commands'), ('global', os.path.expand
                     desc = line.split(':', 1)[1].strip()
                     break
         print(f'  /{name} ({scope}): {desc}')
-" 2>/dev/null)
+PYEOF
+)
 
 # Scan project structure for context (file tree + key files)
-PROJECT_CONTEXT=$(/usr/bin/python3 -W ignore -c "
+PROJECT_CONTEXT=$(/usr/bin/python3 -W ignore - "$CWD" 2>/dev/null <<'PYEOF'
 import os, sys
-cwd = '$CWD'
-# Get directory structure (2 levels deep, skip hidden/node_modules/venv)
+cwd = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
 skip = {'.git','.claude','node_modules','__pycache__','venv','.venv','dist','build','.next'}
 lines = []
 for root, dirs, files in os.walk(cwd):
@@ -175,22 +176,25 @@ for root, dirs, files in os.walk(cwd):
         lines.append('  ... (truncated)')
         break
 print('\n'.join(lines[:80]))
-" 2>/dev/null)
+PYEOF
+)
 
 # Collect cortex memories for this project
-PROJECT_MEMORIES=$(/usr/bin/python3 -W ignore -c "
+PROJECT_MEMORIES=$(/usr/bin/python3 -W ignore - "$PROJECT_NAME" 2>/dev/null <<'PYEOF'
 import os, sys
 sys.path.insert(0, os.path.expanduser('~/.claude/skills/cortex/lib'))
 from chroma_client import get_client, get_collection
+project_name = sys.argv[1] if len(sys.argv) > 1 else ""
 try:
     col = get_collection()
-    data = col.get(where={'project': '$PROJECT_NAME'}, include=['documents','metadatas'])
+    data = col.get(where={'project': project_name}, include=['documents','metadatas'])
     for i in range(len(data['ids'])):
         t = data['metadatas'][i].get('type','')
         if t == 'agent_eval': continue
-        print(f'  [{t}] {data[\"ids\"][i]}: {data[\"documents\"][i][:150]}')
+        print(f'  [{t}] {data["ids"][i]}: {data["documents"][i][:150]}')
 except: pass
-" 2>/dev/null)
+PYEOF
+)
 
 # Framework list for reference
 FRAMEWORK_LIST=$(echo "$UNCOVERED" | /usr/bin/python3 -c "
