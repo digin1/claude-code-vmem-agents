@@ -208,6 +208,21 @@ cp "$CORTEX_DIR/config/cortex-memory.md" "$CLAUDE_DIR/rules/cortex-memory.md"
 cp "$CORTEX_DIR/config/skill-discovery.md" "$CLAUDE_DIR/rules/skill-discovery.md"
 echo "  Installed rules to ~/.claude/rules/."
 
+# Global agents
+mkdir -p "$CLAUDE_DIR/agents"
+if [ -d "$CORTEX_DIR/config/agents" ]; then
+    for agent_file in "$CORTEX_DIR/config/agents"/*.md; do
+        [ -f "$agent_file" ] || continue
+        dest="$CLAUDE_DIR/agents/$(basename "$agent_file")"
+        if [ -f "$dest" ]; then
+            echo "  Agent $(basename "$agent_file") already exists, skipping."
+        else
+            cp "$agent_file" "$dest"
+            echo "  Installed agent: $(basename "$agent_file")"
+        fi
+    done
+fi
+
 echo ""
 echo "=== Installation complete ==="
 echo ""
