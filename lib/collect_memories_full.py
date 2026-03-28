@@ -66,7 +66,7 @@ def collect(project_filter=None):
             for mid, doc, tags in items:
                 tag_str = f" (tags: {tags})" if tags else ""
                 lines.append(f"    {mid}{tag_str}:")
-                lines.append(f"      {doc}")
+                lines.append(f"      {doc[:400]}")
 
     return "\n".join(lines)
 

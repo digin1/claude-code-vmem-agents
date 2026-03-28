@@ -81,11 +81,11 @@ def phase_dedup(col, memories):
         if mtype == "agent_eval":
             continue
 
-        # Query for nearest neighbor (excluding self)
+        # Query for nearest neighbor (+1 to compensate for self-match)
         try:
             results = col.query(
                 query_texts=[mem["content"]],
-                n_results=min(3, col.count()),
+                n_results=min(4, col.count()),
             )
         except Exception:
             continue
@@ -235,7 +235,7 @@ def phase_llm_dedup(col, memories):
 
         try:
             result = subprocess.run(
-                ["claude", "-p", "--model", "sonnet", "--max-turns", "1"],
+                ["claude", "-p", "--model", "haiku", "--max-turns", "1"],
                 input=prompt, capture_output=True, text=True, timeout=15
             )
             if result.returncode != 0:
@@ -478,7 +478,7 @@ def phase_consolidation(col, memories):
 
             try:
                 result = subprocess.run(
-                    ["claude", "-p", "--model", "sonnet", "--mcp-config", "{}", "--strict-mcp-config"],
+                    ["claude", "-p", "--model", "haiku", "--mcp-config", "{}", "--strict-mcp-config"],
                     input=f"""Consolidate these related memories into 1 comprehensive memory.
 
 MEMORIES TO CONSOLIDATE:
@@ -589,11 +589,12 @@ def _find_clusters(col, memories, threshold=0.5):
     for mid in ids:
         if mid in visited or mid not in neighbors:
             continue
-        # BFS to find connected component
+        # BFS to find connected component (deque for O(1) popleft)
+        from collections import deque as _deque
         cluster = []
-        queue = [mid]
+        queue = _deque([mid])
         while queue:
-            current = queue.pop(0)
+            current = queue.popleft()
             if current in visited:
                 continue
             visited.add(current)

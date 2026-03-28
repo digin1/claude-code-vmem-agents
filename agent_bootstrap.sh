@@ -111,7 +111,8 @@ echo "[cortex bootstrap] Projects needing agents: $NEEDS"
 # ================================================================
 # Phase 3: Collect memories + existing agents
 # ================================================================
-MEMORIES=$("$LIB/collect_memories_full.py" "$NEEDS" 2>/dev/null)
+# Collect memories with size cap (12KB max to fit haiku context)
+MEMORIES=$("$LIB/collect_memories_full.py" "$NEEDS" 2>/dev/null | head -c 12000)
 EXISTING_AGENTS=$("$LIB/collect_agents.py" 2>/dev/null)
 
 EXISTING_NAMES=$(echo "$EXISTING_AGENTS" | /usr/bin/python3 -c "

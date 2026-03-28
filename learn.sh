@@ -16,6 +16,13 @@ LIB="$(dirname "$0")/lib"
 LEARNING_STATUS="$HOME/.claude/.cortex_learning_status"
 CORTEX_CONFIG="$HOME/.claude/.cortex_config"
 
+# Process lock: prevent concurrent learn instances
+LOCKFILE="/tmp/cortex-learn.lock"
+exec 201>"$LOCKFILE" 2>/dev/null
+if ! flock -n 201 2>/dev/null; then
+    exit 0
+fi
+
 # Pre-check: verify dependencies importable
 if ! /usr/bin/python3 -W ignore -c "import mcp, chromadb" 2>/dev/null; then
     exit 0

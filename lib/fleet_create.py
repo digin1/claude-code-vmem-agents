@@ -100,35 +100,36 @@ def is_semantically_duplicate(new_desc, existing_descriptions, chromadb_availabl
         return False
 
     try:
-        # Create a temporary collection for comparison
+        # Create a PID-scoped temporary collection for comparison (thread-safe)
         client = get_client()
+        scratch_name = f"_agent_dedup_{os.getpid()}"
 
-        # Use a scratch collection for agent dedup
         try:
-            client.delete_collection("_agent_dedup_scratch")
+            client.delete_collection(scratch_name)
         except Exception:
             pass
-        scratch = client.create_collection("_agent_dedup_scratch")
+        scratch = client.create_collection(scratch_name)
 
-        # Add existing descriptions
-        ids = [f"existing_{i}" for i in range(len(existing_descriptions))]
-        scratch.add(ids=ids, documents=existing_descriptions)
-
-        # Query with new description
-        results = scratch.query(query_texts=[new_desc], n_results=1)
-
-        # Clean up
         try:
-            client.delete_collection("_agent_dedup_scratch")
-        except Exception:
-            pass
+            # Add existing descriptions
+            ids = [f"existing_{i}" for i in range(len(existing_descriptions))]
+            scratch.add(ids=ids, documents=existing_descriptions)
 
-        if (
-            results["distances"]
-            and results["distances"][0]
-            and results["distances"][0][0] < 0.55
-        ):
-            return True
+            # Query with new description
+            results = scratch.query(query_texts=[new_desc], n_results=1)
+
+            if (
+                results["distances"]
+                and results["distances"][0]
+                and results["distances"][0][0] < 0.55
+            ):
+                return True
+        finally:
+            # Always clean up
+            try:
+                client.delete_collection(scratch_name)
+            except Exception:
+                pass
     except Exception:
         pass
 

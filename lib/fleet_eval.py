@@ -196,9 +196,8 @@ def retire_agents(result, cwd, col, ts):
                     f"[cortex fleet] Knowledge extraction failed for {path}: {e}"
                 )
 
-        # Move to cortex .retired/ (NOT inside agents/ — Claude Code discovers recursively)
-        retired_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir, ".retired")
-        retired_dir = os.path.normpath(retired_dir)
+        # Move to ~/.claude/.retired-agents/ (outside git-tracked skill dir)
+        retired_dir = os.path.expanduser("~/.claude/.retired-agents")
         os.makedirs(retired_dir, exist_ok=True)
         retired_path = os.path.join(retired_dir, os.path.basename(path))
         try:

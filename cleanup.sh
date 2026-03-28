@@ -2,7 +2,18 @@
 # Cleanup: prunes stale memories from ChromaDB
 # 1. agent_eval: older than 30 days, keep only latest per agent
 # 2. compact_save.sh-sourced: older than 60 days with near-duplicates (cosine < 0.1)
-# Called by SessionStart hook
+# Called by SessionStart hook — daily cooldown prevents repeated runs
+
+COOLDOWN_DIR="$HOME/.claude/.cortex_cleanup_cooldown"
+mkdir -p "$COOLDOWN_DIR" 2>/dev/null
+TODAY=$(date +%Y-%m-%d)
+COOLDOWN_FILE="$COOLDOWN_DIR/cleanup_${TODAY}"
+if [ -f "$COOLDOWN_FILE" ]; then
+    exit 0
+fi
+touch "$COOLDOWN_FILE"
+# Clean old cooldown files
+find "$COOLDOWN_DIR" -name "cleanup_*" -mtime +7 -delete 2>/dev/null
 
 /usr/bin/python3 -W ignore - 2>/dev/null <<'PYEOF'
 import os, time, sys
@@ -23,7 +34,7 @@ try:
         print("[cortex cleanup] Nothing to prune (empty collection)")
         sys.exit(0)
 
-    data = col.get(include=["metadatas", "documents", "embeddings"])
+    data = col.get(include=["metadatas", "documents"])
     ids = data["ids"]
     metadatas = data["metadatas"]
     documents = data["documents"]
@@ -79,6 +90,9 @@ try:
 
     # For each old compact memory, check if a newer near-duplicate exists
     if compact_old_indices and len(compact_all_indices) > 1:
+        # Build ID→index lookup for O(1) access
+        id_to_index = {ids[i]: i for i in range(len(ids))}
+
         for old_idx in compact_old_indices:
             if ids[old_idx] in to_delete:
                 continue  # already marked
@@ -106,11 +120,7 @@ try:
                     # Check if near-duplicate (cosine distance < threshold)
                     if match_dist < DUPLICATE_THRESHOLD:
                         # Confirm the match is newer
-                        match_meta_idx = None
-                        for k in range(len(ids)):
-                            if ids[k] == match_id:
-                                match_meta_idx = k
-                                break
+                        match_meta_idx = id_to_index.get(match_id)
                         if match_meta_idx is not None:
                             match_ts = metadatas[match_meta_idx].get("timestamp", "")
                             old_ts = metadatas[old_idx].get("timestamp", "")

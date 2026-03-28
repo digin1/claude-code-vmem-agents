@@ -73,17 +73,20 @@ def store_memories(raw):
             ):
                 continue
 
+            metadata = {
+                "type": mem_type,
+                "timestamp": ts,
+                "tags": tags,
+                "source": "compact_save.sh",
+            }
+            project = item.get("project", "")
+            if project:
+                metadata["project"] = project
+
             col.upsert(
                 ids=[mem_id],
                 documents=[content],
-                metadatas=[
-                    {
-                        "type": mem_type,
-                        "timestamp": ts,
-                        "tags": tags,
-                        "source": "compact_save.sh",
-                    }
-                ],
+                metadatas=[metadata],
             )
             stored += 1
 

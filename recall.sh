@@ -14,8 +14,8 @@ if ! flock -n 200 2>/dev/null; then
     exit 0
 fi
 
-# ── Timeout: kill self after 8 seconds ──
-( sleep 8; kill $$ 2>/dev/null ) &
+# ── Timeout: kill process group after 8 seconds (ensures Python child dies too) ──
+( sleep 8; kill -- -$$ 2>/dev/null; kill $$ 2>/dev/null ) &
 WATCHDOG=$!
 trap 'kill $WATCHDOG 2>/dev/null; wait $WATCHDOG 2>/dev/null; exit 0' EXIT
 
@@ -188,19 +188,13 @@ if first_msg:
     except:
         pass
 
-    # Track recalls
+    # Track recalls — use log file (same as subsequent path) to avoid N+1 DB writes
     try:
         now = time.strftime("%Y-%m-%dT%H:%M:%S")
-        for r in results:
-            try:
-                existing = col.get(ids=[r["id"]])
-                if existing["ids"]:
-                    meta = dict(existing["metadatas"][0])
-                    meta["recall_count"] = str(int(meta.get("recall_count", "0") or "0") + 1)
-                    meta["last_recalled"] = now
-                    col.update(ids=[r["id"]], metadatas=[meta])
-            except:
-                pass
+        recall_ids = [r["id"] for r in results]
+        if recall_ids:
+            with open(os.path.expanduser("~/.claude/.cortex_recall_log"), "a") as f:
+                f.write(f"{now} {','.join(recall_ids)}\n")
     except:
         pass
 

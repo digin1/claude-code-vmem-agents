@@ -156,7 +156,8 @@ import json, os, subprocess
 
 config_file = os.path.expanduser('~/.claude/.cortex_config')
 try:
-    cfg = json.load(open(config_file))
+    with open(config_file) as f:
+        cfg = json.load(f)
 except:
     cfg = {}
 

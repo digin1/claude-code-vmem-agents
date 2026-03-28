@@ -41,7 +41,6 @@ try:
     with open(ledger, 'a') as f:
         f.write(json.dumps(entry) + '\n')
         f.flush()
-        os.fsync(f.fileno())
 except Exception:
     pass
 

@@ -43,6 +43,13 @@ try:
 
     with open(OPS_LOG, "a") as f:
         f.write(json.dumps(entry) + "\n")
+    # Rotate if >500KB (keep last 7 days)
+    if os.path.getsize(OPS_LOG) > 500_000:
+        cutoff = time.strftime("%Y-%m-%d", time.localtime(time.time() - 7 * 86400))
+        with open(OPS_LOG) as f:
+            lines = [l for l in f if l[16:26] >= cutoff]  # timestamp prefix
+        with open(OPS_LOG, "w") as f:
+            f.writelines(lines)
 except Exception:
     pass
 
@@ -53,14 +60,13 @@ if tool_short in ("memory_store", "memory_update"):
     current_project = tool_input.get("project", "")
 
     if not current_project:
-        # Detect project from cwd path
-        # Known project names from common paths
-        cwd_lower = cwd.lower()
+        # Detect project dynamically from cwd path components
+        parts = cwd.replace("\\", "/").split("/")
         detected = ""
-        for proj in ["grantlab-dockerswarm", "glabheatmap", "ulkuanalysis",
-                      "ulkusubtype", "comfyui", "ollama-calls"]:
-            if proj in cwd_lower:
-                detected = proj
+        skip = {"home", "Users", "projects", "src", "work", "dev", "repos", "code", ".claude", ""}
+        for p in reversed(parts):
+            if p not in skip and len(p) > 2 and not p.startswith("."):
+                detected = p
                 break
 
         if detected:

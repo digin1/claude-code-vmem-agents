@@ -23,9 +23,14 @@ REASON=$(echo "$INPUT" | /usr/bin/python3 -c "import sys,json; d=json.loads(sys.
 # Phase 1: Quick cleanup (sync, < 500ms)
 # ================================================================
 
-# Write session marker
-TS=$(date -Iseconds)
-echo "{\"timestamp\":\"$TS\",\"session_id\":\"$SESSION_ID\",\"reason\":\"$REASON\",\"cwd\":\"$CWD\"}" >> "$SESSIONS_LOG" 2>/dev/null
+# Write session marker (use Python for safe JSON encoding)
+/usr/bin/python3 -c "
+import json, sys, time
+ts = time.strftime('%Y-%m-%dT%H:%M:%S%z')
+entry = {'timestamp': ts, 'session_id': '$SESSION_ID', 'reason': sys.argv[1], 'cwd': sys.argv[2]}
+with open(sys.argv[3], 'a') as f:
+    f.write(json.dumps(entry) + '\n')
+" "$REASON" "$CWD" "$SESSIONS_LOG" 2>/dev/null
 
 # Clean activity file
 rm -f "$ACTIVITY_FILE" 2>/dev/null
