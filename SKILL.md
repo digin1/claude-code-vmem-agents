@@ -1,7 +1,7 @@
 ---
 name: cortex
 description: Cortex — self-evolving memory and agent fleet — store, search, and manage memories with semantic search across all projects
-argument-hint: <store|search|list|delete|update|stats|agents|discover|learn|addskill|config|merge|docs> [args...]
+argument-hint: <store|search|list|delete|update|stats|agents|discover|learn|addskill|config|merge> [args...]
 allowed-tools: "mcp__cortex__memory_store, mcp__cortex__memory_search, mcp__cortex__memory_list, mcp__cortex__memory_delete, mcp__cortex__memory_update, mcp__cortex__memory_merge, mcp__cortex__memory_stats, Bash, Read, Glob, Write, WebSearch, WebFetch, Agent"
 ---
 
@@ -230,13 +230,11 @@ When the user runs `/cortex config`, read and manage `~/.claude/.cortex_config` 
 | `auto_learn` | bool | `true` | Auto-extract learnings on session stop |
 | `auto_skills` | bool | `true` | Auto-suggest skills on session stop |
 | `auto_agents` | bool | `true` | Auto-suggest agents on session stop |
-| `auto_docs` | bool | `true` | Auto-download framework docs on session start |
 
 **Usage:**
 - `/cortex config` — show current config
 - `/cortex config notify false` — disable notifications
 - `/cortex config auto_skills false` — disable auto skill suggestions
-- `/cortex config auto_docs false` — disable auto documentation fetching
 
 **Implementation:** Read/write `~/.claude/.cortex_config` as JSON:
 ```bash

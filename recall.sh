@@ -284,28 +284,12 @@ if first_msg:
         ("project", os.path.join(cwd, ".claude", "commands")),
         ("global", os.path.expanduser("~/.claude/commands")),
     ], prefix="/")
-    doc_lines = []
-    doc_root = os.path.expanduser("~/.claude/docs")
-    if os.path.isdir(doc_root):
-        for fid in sorted(os.listdir(doc_root)):
-            mp = os.path.join(doc_root, fid, ".manifest.json")
-            if os.path.isfile(mp):
-                try:
-                    with open(mp) as f:
-                        m = json.load(f)
-                    doc_lines.append(f"  {fid}: {m.get('file_count', '?')} files")
-                except Exception:
-                    pass
-
     if agent_lines:
         lines.append("\n[cortex] Agents:")
         lines.extend(agent_lines)
     if skill_lines:
         lines.append("\n[cortex] Skills:")
         lines.extend(skill_lines)
-    if doc_lines:
-        lines.append("\n[cortex] Docs:")
-        lines.extend(doc_lines)
 
     skipped = len(candidates) - included_count
     if skipped > 0:

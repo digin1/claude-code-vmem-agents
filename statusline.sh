@@ -138,18 +138,6 @@ if global_count:
 print(f'{total} skills ({\" + \".join(parts)})')
 " 2>/dev/null)
 
-# ── Line 3b: Cached docs ──
-DOCS_LINE=$(/usr/bin/python3 -W ignore -c "
-import os
-doc_root = os.path.expanduser('~/.claude/docs')
-if not os.path.isdir(doc_root): exit(0)
-count = len([d for d in os.listdir(doc_root)
-             if os.path.isdir(os.path.join(doc_root, d))
-             and os.path.isfile(os.path.join(doc_root, d, '.manifest.json'))])
-if count == 0: exit(0)
-print(f'{count} doc caches')
-" 2>/dev/null)
-
 # ── Line 5: Health & config ──
 HEALTH_LINE=$(/usr/bin/python3 -W ignore -c "
 import json, os, subprocess
@@ -166,7 +154,6 @@ defaults = {
     'auto_learn': True,
     'auto_skills': True,
     'auto_agents': True,
-    'auto_docs': True,
     'notify': True,
 }
 
@@ -181,7 +168,7 @@ except:
 
 # Build toggle display
 toggles = []
-for key in ['auto_learn', 'auto_skills', 'auto_agents', 'auto_docs', 'notify']:
+for key in ['auto_learn', 'auto_skills', 'auto_agents', 'notify']:
     val = cfg.get(key, defaults[key])
     short = key.replace('auto_', '').replace('notify', 'notify')
     symbol = '\u2713' if val else '\u2717'
@@ -224,9 +211,6 @@ if [ -n "$SKILLS_LINE" ]; then
     OUTPUT="${OUTPUT}\n\U0001f4da ${SKILLS_LINE}"
 fi
 
-if [ -n "$DOCS_LINE" ]; then
-    OUTPUT="${OUTPUT}\n\U0001f4d6 ${DOCS_LINE}"
-fi
 
 if [ -n "$HEALTH_LINE" ]; then
     OUTPUT="${OUTPUT}\n\U00002699 ${HEALTH_LINE}"

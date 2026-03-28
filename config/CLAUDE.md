@@ -99,19 +99,3 @@ When you identify a reusable multi-step workflow, create a skill directly:
 - **Local** (`.claude/commands/`): References project-specific paths, containers, tables, architecture
 - **Global** (`~/.claude/commands/`): Generic CLI wrappers, cross-project utilities
 
-## Knowledge Base (Cached Documentation)
-
-Cortex automatically downloads full framework documentation to `~/.claude/docs/` on session start. The first-message injection lists available caches.
-
-### Usage Rules
-- When answering framework questions, **check cached docs first** by reading files from `~/.claude/docs/<framework>/`
-- Cached docs are complete raw markdown — use the `Read` tool to access specific files
-- If docs are not cached, use context7 MCP tools (`resolve-library-id` then `query-docs`)
-- Prefer cached docs over context7 — they're complete, unprocessed, and free to read
-- The subsequent-message recall will highlight relevant cached docs when you mention a framework
-
-### Commands
-- `/cortex docs` — show cache status (which frameworks, freshness, file counts)
-- `/cortex docs fetch <name>` — manually download docs for a framework
-- `/cortex docs refresh` — refresh all stale caches
-- `/cortex docs clear [name]` — clear cache for one or all frameworks
