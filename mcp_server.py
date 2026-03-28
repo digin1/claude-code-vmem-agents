@@ -207,7 +207,7 @@ def memory_store(
     Args:
         content: The memory text to store (max 5000 chars)
         memory_type: Category — user, feedback, preferences, project, reference, or general
-        memory_id: Custom ID (auto-generated if empty). Use descriptive IDs like 'pref_notify_send_off'
+        memory_id: Custom ID (auto-generated if empty). Use descriptive IDs like 'pref_dark_mode'
         project: Project name for scoping (empty = global)
         tags: Comma-separated tags for organization
     """

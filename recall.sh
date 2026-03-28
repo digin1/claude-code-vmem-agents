@@ -60,6 +60,7 @@ _skip_patterns = [
     "output a json array of memories",
     "output a json array of agents",
     "output only the json array",
+    "consolidate these related memories",
 ]
 _prompt_lower = user_prompt[:500].lower()
 for _pat in _skip_patterns:

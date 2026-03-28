@@ -29,5 +29,5 @@ Always include a `project` tag when the memory is project-specific.
 - Before storing, search for existing similar memories to avoid duplicates
 - When a near-duplicate is found, use `memory_update` (mode=append or replace) instead of creating new
 - When 3+ memories cover the same topic, use `memory_merge` to consolidate
-- Use descriptive `memory_id` values (e.g., `pref_notify_off`, `feedback_no_mocks_in_tests`)
+- Use descriptive `memory_id` values (e.g., `pref_dark_mode`, `feedback_no_mocks_in_tests`)
 - Keep content concise — under 1000 chars when possible, max 5000

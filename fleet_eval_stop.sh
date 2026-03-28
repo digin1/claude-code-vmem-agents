@@ -92,7 +92,7 @@ all_agents.discard("general-purpose")
 
 # Filter out retired agents (in cortex .retired/ dir)
 import glob
-RETIRED_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".retired")
+RETIRED_DIR = os.path.expanduser("~/.claude/.retired-agents")
 retired_names = set()
 if os.path.isdir(RETIRED_DIR):
     for f in glob.glob(os.path.join(RETIRED_DIR, "*.md")):

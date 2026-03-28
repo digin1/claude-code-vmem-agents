@@ -89,6 +89,122 @@ if [ -z "$NEEDS" ]; then
 fi
 
 # ================================================================
+# Phase 1.5: Auto-recall retired agents if no similar active agent exists
+# ================================================================
+/usr/bin/python3 -W ignore - "$CWD" 2>/dev/null <<'RECALL_EOF'
+import sys, os, glob, re
+
+cwd = sys.argv[1] if len(sys.argv) > 1 else ""
+retired_dir = os.path.expanduser("~/.claude/.retired-agents")
+if not os.path.isdir(retired_dir):
+    sys.exit(0)
+
+retired_files = glob.glob(os.path.join(retired_dir, "*.md"))
+if not retired_files:
+    sys.exit(0)
+
+# Collect active agent descriptions (project + global)
+active_agents = {}  # name -> description
+for agents_dir in [
+    os.path.join(cwd, ".claude", "agents") if cwd else "",
+    os.path.expanduser("~/.claude/agents"),
+]:
+    if not agents_dir or not os.path.isdir(agents_dir):
+        continue
+    for f in glob.glob(os.path.join(agents_dir, "*.md")):
+        name = os.path.basename(f).replace(".md", "")
+        try:
+            with open(f) as fh:
+                content = fh.read()
+            # Extract description from frontmatter
+            match = re.search(r'^description:\s*(.+)$', content, re.MULTILINE)
+            active_agents[name] = match.group(1).strip() if match else ""
+        except:
+            pass
+
+if not active_agents:
+    # No active agents at all — recall all retired ones
+    pass
+
+# Use ChromaDB semantic similarity to check if retired agent's role is covered
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/cortex/lib"))
+try:
+    from chroma_client import get_collection
+    col = get_collection()
+except:
+    sys.exit(0)
+
+# Build active descriptions text for comparison
+active_descs = [f"{n}: {d}" for n, d in active_agents.items() if d]
+
+recalled = 0
+for retired_path in retired_files:
+    try:
+        with open(retired_path) as f:
+            content = f.read()
+        match = re.search(r'^description:\s*(.+)$', content, re.MULTILINE)
+        if not match:
+            continue
+        retired_desc = match.group(1).strip()
+        retired_name = os.path.basename(retired_path).replace(".md", "")
+
+        # Skip if an agent with the same name already exists
+        if retired_name in active_agents:
+            continue
+
+        # Check semantic similarity against all active agent descriptions
+        is_covered = False
+        if active_descs:
+            try:
+                # Embed retired description and compare against active ones
+                results = col.query(
+                    query_texts=[retired_desc],
+                    where={"type": "agent_eval"},
+                    n_results=1,
+                )
+                # Also do a simple keyword overlap check
+                retired_words = set(retired_desc.lower().split())
+                for active_desc in active_descs:
+                    active_words = set(active_desc.lower().split())
+                    overlap = len(retired_words & active_words) / max(len(retired_words), 1)
+                    if overlap > 0.5:
+                        is_covered = True
+                        break
+            except:
+                pass
+
+        if is_covered:
+            continue
+
+        # Recall: move retired agent back to the appropriate agents directory
+        # Determine scope from content
+        if "scope: project" in content.lower() or "project" in content[:200].lower():
+            target_dir = os.path.join(cwd, ".claude", "agents") if cwd else os.path.expanduser("~/.claude/agents")
+        else:
+            target_dir = os.path.expanduser("~/.claude/agents")
+
+        os.makedirs(target_dir, exist_ok=True)
+        target_path = os.path.join(target_dir, os.path.basename(retired_path))
+
+        if not os.path.exists(target_path):
+            os.rename(retired_path, target_path)
+            recalled += 1
+            print(f"[cortex bootstrap] Recalled retired agent: {retired_name}")
+    except Exception as e:
+        continue
+
+if recalled > 0:
+    activity_file = os.path.expanduser("~/.claude/.cortex_activity")
+    try:
+        existing = open(activity_file).read().strip() if os.path.exists(activity_file) else ""
+        msg = f"recalled {recalled} retired agent(s)"
+        with open(activity_file, "w") as f:
+            f.write(f"{existing} | {msg}" if existing else msg)
+    except:
+        pass
+RECALL_EOF
+
+# ================================================================
 # Phase 2: Cooldown — once per project per day
 # ================================================================
 TODAY=$(date +%Y-%m-%d)

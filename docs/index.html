@@ -51,8 +51,7 @@
       "Progressive disclosure: 250-char summaries with on-demand full content",
       "Global behavioral rules: CLAUDE.md + rules/ config templates",
       "Safety: audit log, content limits, soft delete, hard caps",
-      "Knowledge base caching: auto-download framework docs on session start",
-      "Feature configuration: toggle auto_learn, auto_skills, auto_agents, auto_docs, notify",
+      "Feature configuration: toggle auto_learn, auto_skills, auto_agents",
       "ChromaDB health monitoring in status line"
     ]
   }
@@ -274,14 +273,9 @@
         <p>All agents have <code>memory: user</code> or <code>memory: project</code> scope. They accumulate knowledge across sessions in their own MEMORY.md files.</p>
       </div>
       <div class="feature">
-        <div class="icon">📖</div>
-        <h3>Knowledge Base Caching</h3>
-        <p>Auto-downloads framework documentation to <code>~/.claude/docs/</code> on session start. Toggle with <code>/cortex config auto_docs false</code>. Cached docs are free to read — no API calls needed.</p>
-      </div>
-      <div class="feature">
         <div class="icon">⚙️</div>
         <h3>Feature Configuration</h3>
-        <p>Toggle features via <code>/cortex config</code>: auto_learn, auto_skills, auto_agents, auto_docs, notify. Status shown in real-time on the status line with ✓/✗ indicators.</p>
+        <p>Toggle features via <code>/cortex config</code>: auto_learn, auto_skills, auto_agents. Status shown in real-time on the status line with ✓/✗ indicators.</p>
       </div>
     </div>
 
@@ -293,7 +287,6 @@
   <span class="arrow">├──</span> <span class="new">agent_bootstrap.sh</span>  create agents from cortex (daily)
   <span class="arrow">├──</span> <span class="new">memory_hygiene.sh</span>   dedup + consolidate (daily)
   <span class="arrow">├──</span> <span class="new">skill_discover.sh</span>   detect tech stack + generate skills (weekly)
-  <span class="arrow">└──</span> <span class="new">knowledge_fetch.sh</span>  auto-download framework docs (async)
 
 <span class="step">Every Message</span>
   <span class="arrow">└──</span> <span class="new">recall.sh</span>           smart recall + keyword boost + progressive disclosure
@@ -332,7 +325,7 @@
             <tr><td>SubagentStart</td><td>agent_context_inject.sh</td><td>Inject domain memories into spawned agents</td></tr>
             <tr><td>PreCompact</td><td>compact_save.sh</td><td>Extract memories + create/evaluate agents</td></tr>
             <tr><td>PostCompact</td><td>post_compact_save.sh</td><td>Extract from compressed summary</td></tr>
-            <tr><td>SessionStart (x5)</td><td>cleanup + bootstrap + hygiene + skill_discover + knowledge_fetch</td><td>Prune, create agents, dedup memories, generate skills, cache docs</td></tr>
+            <tr><td>SessionStart (x4)</td><td>cleanup + bootstrap + hygiene + skill_discover</td><td>Prune, create agents, dedup memories, generate skills</td></tr>
             <tr><td>SessionEnd</td><td>session_end_cleanup.sh</td><td>Save session summary + cleanup</td></tr>
             <tr><td>Stop (x2)</td><td>learn + fleet_eval_stop</td><td>Block stop to save learnings via MCP + fleet health check</td></tr>
           </tbody>
@@ -370,8 +363,7 @@ cp ~/.claude/skills/cortex/config/cortex-memory.md ~/.claude/rules/cortex-memory
         <pre>🧠 44 memories (7 project, 3 feedback, 6 prefs, 26 reference, 2 user) across 2 projects
 🤖 16 agents (11 project + 5 global) | 17 spawns today
 📚 13 skills (10 project + 3 global)
-📖 4 doc caches
-⚙ chromadb:✓ | learn:✓ skills:✓ agents:✓ docs:✓ notify:✓</pre>
+⚙ chromadb:✓ | learn:✓ skills:✓ agents:✓</pre>
       </div>
     </div>
 
