@@ -63,14 +63,17 @@ STATIC_EOF
 } > "$PROMPT_FILE"
 # Replace placeholder with actual project name (safe — basename output)
 sed -i "s/PROJECT_PLACEHOLDER/${PROJECT_NAME:-unknown}/g" "$PROMPT_FILE"
-SUMMARY=$(claude -p --bare < "$PROMPT_FILE" 2>/dev/null)
-
-if [ -n "$SUMMARY" ]; then
-    "$LIB/store_memories.py" "$SUMMARY"
-fi
+# Run Phase 1 in background while Phase 2a collects data
+(
+    SUMMARY=$(claude -p --bare < "$PROMPT_FILE" 2>/dev/null)
+    if [ -n "$SUMMARY" ]; then
+        "$LIB/store_memories.py" "$SUMMARY"
+    fi
+) &
+PHASE1_PID=$!
 
 # ============================================================
-# PHASE 2a: Agent fleet creation
+# PHASE 2a: Agent fleet creation (collect data while Phase 1 runs)
 # ============================================================
 EXISTING_AGENTS_JSON=$("$LIB/collect_agents.py" 2>/dev/null)
 MEMORIES=$("$LIB/collect_memories.py" 2>/dev/null)
@@ -173,3 +176,6 @@ rm -f "$EVAL_PROMPT"
 if [ -n "$EVAL_RESULT" ]; then
     "$LIB/fleet_eval.py" "$EVAL_RESULT" "$CWD"
 fi
+
+# Wait for Phase 1 (memory extraction) to finish
+wait $PHASE1_PID 2>/dev/null

@@ -5,6 +5,17 @@ DB_PATH="$HOME/.claude/cortex-db"
 ACTIVITY_FILE="$HOME/.claude/.cortex_activity"
 OPS_LOG="$HOME/.claude/.cortex_ops_log.jsonl"
 SESSIONS_LOG="$HOME/.claude/.cortex_sessions.jsonl"
+CACHE_FILE="$HOME/.claude/.cortex_statusline_cache"
+CACHE_TTL=15  # seconds
+
+# Use cached output if fresh enough
+if [ -f "$CACHE_FILE" ]; then
+    CACHE_AGE=$(( $(date +%s) - $(stat -c %Y "$CACHE_FILE" 2>/dev/null || echo 0) ))
+    if [ "$CACHE_AGE" -lt "$CACHE_TTL" ]; then
+        cat "$CACHE_FILE"
+        exit 0
+    fi
+fi
 
 # ── Line 1: Memory stats ──
 MEMORY_LINE=$(/usr/bin/python3 -W ignore - "$DB_PATH" 2>/dev/null <<'PYEOF'
@@ -229,4 +240,5 @@ if [ -n "$EXTRA" ]; then
     OUTPUT="${OUTPUT}\n${EXTRA}"
 fi
 
-echo -e "$OUTPUT"
+# Cache output and display
+echo -e "$OUTPUT" | tee "$CACHE_FILE"
