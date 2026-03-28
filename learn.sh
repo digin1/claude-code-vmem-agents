@@ -1,19 +1,17 @@
 #!/bin/bash
-# Auto-learn: called by Stop hook
-# Strategy: non-blocking — check if session had meaningful content,
-# spawn background process to extract learnings via claude -p.
-# Status shown live in the status line via .cortex_learning_status file.
+# Auto-learn: called by Stop hook (runs synchronously — blocks session exit)
+# Extracts learnings, suggests skills, creates agents from session transcript.
 #
 # Flow:
-# 1. Stop hook fires → script checks transcript for meaningful content
-# 2. If enough content → spawns background extraction process
-# 3. Returns immediately (non-blocking) — user exits right away
-# 4. Background process: parse transcript → claude -p → store_memories.py
-# 5. Status line shows live progress via status file
+# 1. Check transcript for meaningful content (fast, no LLM)
+# 2. Parse transcript context
+# 3. Phase 1: Extract learnings via claude -p haiku → store in cortex
+# 4. Phase 2: Suggest skill improvements (if enabled)
+# 5. Phase 3: Create agents from patterns (if enabled)
+# 6. Desktop notification on completion
 
 INPUT=$(cat)
 LIB="$(dirname "$0")/lib"
-LEARNING_STATUS="$HOME/.claude/.cortex_learning_status"
 CORTEX_CONFIG="$HOME/.claude/.cortex_config"
 
 # Process lock: prevent concurrent learn instances
@@ -101,7 +99,6 @@ PYEOF
 
 # If python exited non-zero, not enough content
 if [ $? -ne 0 ] || [ -z "$SHOULD_LEARN" ]; then
-    rm -f "$LEARNING_STATUS" 2>/dev/null
     exit 0
 fi
 
@@ -110,40 +107,24 @@ TRANSCRIPT=$(echo "$SHOULD_LEARN" | /usr/bin/python3 -c "import sys,json; print(
 CWD=$(echo "$SHOULD_LEARN" | /usr/bin/python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('cwd',''),end='')" 2>/dev/null)
 TOPICS=$(echo "$SHOULD_LEARN" | /usr/bin/python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('topic_hint',''),end='')" 2>/dev/null)
 
-# Spawn background extraction — completely detached from this process
-(
-    # Status helpers — write to file + notify on completion
-    _PID=${BASHPID}
-    _START=$(date +%s)
-    _status() {
-        echo "pid:${_PID}:${_START}:$1" > "$LEARNING_STATUS" 2>/dev/null
-    }
-    _done() {
-        echo "pid:${_PID}:${_START}:done:$1" > "$LEARNING_STATUS" 2>/dev/null
-        # Desktop notification (unless disabled in config)
-        if ! grep -q '"notify":false' "$CORTEX_CONFIG" 2>/dev/null; then
-            notify-send -i info -t 5000 "Cortex" "$1" 2>/dev/null || true
-        fi
-    }
-    _status "extracting learnings"
+PROJECT_NAME=""
+if [ -n "$CWD" ]; then
+    PROJECT_NAME=$(basename "$CWD")
+fi
 
-    PROJECT_NAME=""
-    if [ -n "$CWD" ]; then
-        PROJECT_NAME=$(basename "$CWD")
-    fi
+# Parse transcript
+CONTEXT=$("$LIB/parse_transcript.py" "$TRANSCRIPT" 2>/dev/null | tail -c 4000)
 
-    # Parse transcript
-    CONTEXT=$("$LIB/parse_transcript.py" "$TRANSCRIPT" 2>/dev/null | tail -c 4000)
+if [ -z "$CONTEXT" ] || [ ${#CONTEXT} -lt 100 ]; then
+    exit 0
+fi
 
-    if [ -z "$CONTEXT" ] || [ ${#CONTEXT} -lt 100 ]; then
-        _done "no new learnings"
-        sleep 60 && rm -f "$LEARNING_STATUS" 2>/dev/null
-        exit 0
-    fi
+# ════════════════════════════════════════════════
+# Phase 1: Extract learnings
+# ════════════════════════════════════════════════
 
-    # Extract learnings via claude -p
-    # Fetch existing memory IDs so haiku can avoid duplicates
-    EXISTING_IDS=$(/usr/bin/python3 -W ignore -c "
+# Fetch existing memory IDs so haiku can avoid duplicates
+EXISTING_IDS=$(/usr/bin/python3 -W ignore -c "
 import sys, os
 sys.path.insert(0, os.path.expanduser('~/.claude/skills/cortex/lib'))
 from chroma_client import get_collection
@@ -156,7 +137,7 @@ try:
 except: print('')
 " 2>/dev/null)
 
-    LEARNINGS=$(echo "$CONTEXT" | claude -p --bare --no-session-persistence --model haiku "
+LEARNINGS=$(echo "$CONTEXT" | timeout 30 claude -p --bare --no-session-persistence --model haiku "
 Extract learnings from this coding session for a persistent memory system.
 Project: ${PROJECT_NAME:-unknown} (dir: ${CWD:-unknown})
 Topics discussed: ${TOPICS:-unknown}
@@ -176,27 +157,19 @@ Rules:
 - Output ONLY the JSON array, no markdown fences or explanation
 " 2>/dev/null)
 
-    STORED_COUNT=0
-    if [ -z "$LEARNINGS" ] || [ "$LEARNINGS" = "[]" ]; then
-        _status "no new learnings"
-    else
-
-    # Store via store_memories.py (has built-in dedup)
-    _status "storing learnings"
+STORED_COUNT=0
+if [ -n "$LEARNINGS" ] && [ "$LEARNINGS" != "[]" ]; then
     RESULT=$("$LIB/store_memories.py" "$LEARNINGS" 2>&1)
     STORED_COUNT=$(echo "$RESULT" | grep -c "Stored" 2>/dev/null || echo "0")
+fi
 
-    _status "${STORED_COUNT} learnings stored"
+# ════════════════════════════════════════════════
+# Phase 2: Skill improvement (if enabled)
+# ════════════════════════════════════════════════
 
-    fi  # end learnings if/else
+SKILL_COUNT=0
+if ! grep -q '"auto_skills":false' "$CORTEX_CONFIG" 2>/dev/null; then
 
-    # ── Phase 2: Skill improvement (if enabled) ──
-    SKILL_COUNT=0
-    if ! grep -q '"auto_skills":false' "$CORTEX_CONFIG" 2>/dev/null; then
-    sleep 2
-    _status "checking skills"
-
-    # Detect existing skills
     PROJ_SKILLS=""
     GLOBAL_SKILLS=""
     if [ -d "$CWD/.claude/commands" ]; then
@@ -206,7 +179,7 @@ Rules:
         GLOBAL_SKILLS=$(ls "$HOME/.claude/commands/"*.md 2>/dev/null | xargs -I{} basename {} .md | tr '\n' ',' | sed 's/,$//')
     fi
 
-    SKILL_RESULT=$(echo "$CONTEXT" | claude -p --bare --no-session-persistence --model haiku "
+    SKILL_RESULT=$(echo "$CONTEXT" | timeout 30 claude -p --bare --no-session-persistence --model haiku "
 Analyze this coding session for skill improvement opportunities.
 Project: ${PROJECT_NAME:-unknown} (dir: ${CWD:-unknown})
 Existing project skills: ${PROJ_SKILLS:-none}
@@ -242,8 +215,6 @@ except: print(0, end='')
 " 2>/dev/null)
 
         if [ "$SKILL_COUNT" -gt 0 ] 2>/dev/null; then
-            _status "skills:${SKILL_COUNT} suggested"
-            # Store suggestions as a cortex memory for next session to act on
             "$LIB/store_memories.py" "$(echo "$SKILL_RESULT" | /usr/bin/python3 -c "
 import sys, json
 try:
@@ -266,15 +237,15 @@ except: sys.exit(0)
         fi
     fi
 
-    fi  # end auto_skills check
+fi  # end auto_skills check
 
-    # ── Phase 3: Agent creation (if enabled) ──
-    AGENT_COUNT=0
-    if ! grep -q '"auto_agents":false' "$CORTEX_CONFIG" 2>/dev/null; then
-    sleep 2
-    _status "checking agents"
+# ════════════════════════════════════════════════
+# Phase 3: Agent creation (if enabled)
+# ════════════════════════════════════════════════
 
-    # Collect existing agents info
+AGENT_COUNT=0
+if ! grep -q '"auto_agents":false' "$CORTEX_CONFIG" 2>/dev/null; then
+
     EXISTING_AGENTS=""
     for AGENT_DIR in "$HOME/.claude/agents" "$CWD/.claude/agents"; do
         if [ -d "$AGENT_DIR" ]; then
@@ -284,7 +255,7 @@ except: sys.exit(0)
         fi
     done
 
-    AGENT_RESULT=$(echo "$CONTEXT" | claude -p --bare --no-session-persistence --model haiku "
+    AGENT_RESULT=$(echo "$CONTEXT" | timeout 30 claude -p --bare --no-session-persistence --model haiku "
 Analyze this coding session for specialized agent opportunities.
 Project: ${PROJECT_NAME:-unknown} (dir: ${CWD:-unknown})
 Existing agents:
@@ -309,34 +280,33 @@ Rules:
 " 2>/dev/null)
 
     if [ -n "$AGENT_RESULT" ] && [ "$AGENT_RESULT" != "[]" ]; then
-        _status "creating agents"
         AGENT_COUNT=$("$LIB/fleet_create.py" "$AGENT_RESULT" "$CWD" 2>/dev/null | tail -1)
     fi
-    fi  # end auto_agents check
 
-    # Final status — combine all results
-    PARTS=""
-    if [ "$STORED_COUNT" -gt 0 ] 2>/dev/null; then
-        PARTS="${STORED_COUNT} learnings"
-    fi
-    if [ "$SKILL_COUNT" -gt 0 ] 2>/dev/null; then
-        [ -n "$PARTS" ] && PARTS="${PARTS}, "
-        PARTS="${PARTS}${SKILL_COUNT} skill suggestions"
-    fi
-    if [ "$AGENT_COUNT" -gt 0 ] 2>/dev/null; then
-        [ -n "$PARTS" ] && PARTS="${PARTS}, "
-        PARTS="${PARTS}${AGENT_COUNT} agents created"
-    fi
+fi  # end auto_agents check
 
-    if [ -n "$PARTS" ]; then
-        _done "${PARTS}"
-    else
-        _done "no new learnings"
-    fi
+# ════════════════════════════════════════════════
+# Summary + notification
+# ════════════════════════════════════════════════
 
-    # Clean up status file after 2 minutes
-    sleep 120 && rm -f "$LEARNING_STATUS" 2>/dev/null
-) </dev/null >/dev/null 2>&1 &
-disown
+PARTS=""
+if [ "$STORED_COUNT" -gt 0 ] 2>/dev/null; then
+    PARTS="${STORED_COUNT} learnings"
+fi
+if [ "$SKILL_COUNT" -gt 0 ] 2>/dev/null; then
+    [ -n "$PARTS" ] && PARTS="${PARTS}, "
+    PARTS="${PARTS}${SKILL_COUNT} skill suggestions"
+fi
+if [ "$AGENT_COUNT" -gt 0 ] 2>/dev/null; then
+    [ -n "$PARTS" ] && PARTS="${PARTS}, "
+    PARTS="${PARTS}${AGENT_COUNT} agents created"
+fi
+
+# Desktop notification (unless disabled)
+if [ -n "$PARTS" ]; then
+    if ! grep -q '"notify":false' "$CORTEX_CONFIG" 2>/dev/null; then
+        notify-send -i info -t 5000 "Cortex" "$PARTS" 2>/dev/null || true
+    fi
+fi
 
 exit 0
