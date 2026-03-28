@@ -14,12 +14,7 @@ if ! flock -n 200 2>/dev/null; then
     exit 0
 fi
 
-# ── Timeout: kill process group after 8 seconds (ensures Python child dies too) ──
-( sleep 8; kill -- -$$ 2>/dev/null; kill $$ 2>/dev/null ) &
-WATCHDOG=$!
-trap 'kill $WATCHDOG 2>/dev/null; wait $WATCHDOG 2>/dev/null; exit 0' EXIT
-
-/usr/bin/python3 -W ignore - "$INPUT" 2>/dev/null <<'PYEOF'
+timeout 10 /usr/bin/python3 -W ignore - "$INPUT" 2>/dev/null <<'PYEOF'
 import sys, json, os, time
 
 raw = sys.argv[1] if len(sys.argv) > 1 else ""
