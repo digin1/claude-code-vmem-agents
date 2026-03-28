@@ -135,14 +135,6 @@ if auto_agents:
         "from this session. Max 1 agent. Skip if nothing needed."
     )
 
-# Phase 4: Docs (if session involved significant code changes)
-if assistant_tool_uses > 10:
-    instructions.append(
-        "4. DOCS: If this session made significant code changes, update or create relevant "
-        "documentation in the project's docs/ directory. Only if changes warrant it — skip "
-        "for minor fixes."
-    )
-
 instruction_text = "\n".join(instructions)
 
 output = json.dumps({
