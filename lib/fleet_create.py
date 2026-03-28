@@ -15,9 +15,9 @@ import re
 import warnings
 
 warnings.filterwarnings("ignore")
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
 
-DB_PATH = os.path.expanduser("~/.claude/cortex-db")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from chroma_client import get_client
 
 
 def strip_code_fences(raw):
@@ -90,20 +90,18 @@ def get_existing_agent_descriptions():
     return descriptions
 
 
-def is_semantically_duplicate(new_desc, existing_descriptions, col):
+def is_semantically_duplicate(new_desc, existing_descriptions, chromadb_available=True):
     """Check if new agent description is too similar to any existing agent.
 
     Uses ChromaDB's embedding to compare cosine distance.
     Returns True if cosine distance < 0.3 to any existing agent.
     """
-    if not new_desc or not existing_descriptions or col is None:
+    if not new_desc or not existing_descriptions or not chromadb_available:
         return False
 
     try:
         # Create a temporary collection for comparison
-        import chromadb
-
-        client = chromadb.PersistentClient(path=DB_PATH)
+        client = get_client()
 
         # Use a scratch collection for agent dedup
         try:
@@ -137,8 +135,8 @@ def is_semantically_duplicate(new_desc, existing_descriptions, col):
     return False
 
 
-MAX_PROJECT_AGENTS = 5
-MAX_USER_AGENTS = 5
+MAX_PROJECT_AGENTS = 0  # 0 = unlimited
+MAX_USER_AGENTS = 0     # 0 = unlimited
 
 
 def create_agents(raw, cwd):
@@ -150,7 +148,7 @@ def create_agents(raw, cwd):
     # Set up ChromaDB for semantic dedup (flag only — is_semantically_duplicate creates its own client)
     chromadb_available = False
     try:
-        import chromadb
+        get_client()
         chromadb_available = True
     except Exception:
         pass
@@ -176,14 +174,14 @@ def create_agents(raw, cwd):
         if not filename:
             continue
 
-        # Hard cap check
-        if scope == "project" and scope_counts["project"] >= MAX_PROJECT_AGENTS:
+        # Cap check (0 = unlimited)
+        if MAX_PROJECT_AGENTS and scope == "project" and scope_counts["project"] >= MAX_PROJECT_AGENTS:
             print(
                 f"[cortex fleet] Skipped '{filename}': project agent cap ({MAX_PROJECT_AGENTS}) reached",
                 file=sys.stderr,
             )
             continue
-        if scope != "project" and scope_counts["user"] >= MAX_USER_AGENTS:
+        if MAX_USER_AGENTS and scope != "project" and scope_counts["user"] >= MAX_USER_AGENTS:
             print(
                 f"[cortex fleet] Skipped '{filename}': user agent cap ({MAX_USER_AGENTS}) reached",
                 file=sys.stderr,

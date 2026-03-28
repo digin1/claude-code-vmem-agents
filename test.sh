@@ -377,12 +377,11 @@ fi
 python3 -W ignore -c "
 import os, warnings
 warnings.filterwarnings('ignore')
-os.environ['ONNXRUNTIME_DISABLE_TELEMETRY'] = '1'
-os.environ['ORT_LOG_LEVEL'] = 'ERROR'
 try:
-    import chromadb
-    client = chromadb.PersistentClient(path=os.path.expanduser('~/.claude/cortex-db'))
-    col = client.get_or_create_collection('claude_memories')
+    import sys
+    sys.path.insert(0, os.path.expanduser('~/.claude/skills/cortex/lib'))
+    from chroma_client import get_collection
+    col = get_collection()
     col.delete(ids=['cortex-test-memory-001'])
 except: pass
 " 2>/dev/null

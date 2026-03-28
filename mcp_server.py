@@ -14,32 +14,20 @@ Safety guardrails:
 import hashlib
 import json
 import os
+import sys
 import time
 import warnings
 from pathlib import Path
 
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
-os.environ["ORT_LOG_LEVEL"] = "ERROR"
-# Throttle threads — multiple MCP server instances run concurrently
-os.environ["OMP_NUM_THREADS"] = "2"
-os.environ["ONNXRUNTIME_SESSION_THREAD_POOL_SIZE"] = "2"
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
 warnings.filterwarnings("ignore")
 
-_stderr_fd = os.dup(2)
-_devnull = os.open(os.devnull, os.O_WRONLY)
-os.dup2(_devnull, 2)
-os.close(_devnull)
-try:
-    import onnxruntime
-    onnxruntime.set_default_logger_severity(3)
-    import chromadb
-finally:
-    os.dup2(_stderr_fd, 2)
-    os.close(_stderr_fd)
+sys_path = os.path.dirname(os.path.abspath(__file__))
+if sys_path not in sys.path:
+    sys.path.insert(0, sys_path)
+from lib.chroma_client import get_client, get_collection as _chroma_get_collection
+
 from mcp.server.fastmcp import FastMCP
 
-DB_PATH = str(Path.home() / ".claude" / "cortex-db")
 AUDIT_LOG = str(Path.home() / ".claude" / ".cortex_audit.jsonl")
 RECALL_LOG = str(Path.home() / ".claude" / ".cortex_recall_log")
 
@@ -69,11 +57,7 @@ def get_collection():
             _chroma_client = None
             _chroma_collection = None
 
-    _chroma_client = chromadb.PersistentClient(path=DB_PATH)
-    _chroma_collection = _chroma_client.get_or_create_collection(
-        name="claude_memories",
-        metadata={"hnsw:space": "cosine"},
-    )
+    _chroma_collection = _chroma_get_collection()
     return _chroma_collection
 
 
@@ -203,6 +187,9 @@ def _maybe_rotate_audit_log():
         pass
 
 
+DEDUP_DISTANCE_THRESHOLD = 0.15  # Cosine distance below this = near-duplicate
+
+
 @mcp.tool()
 def memory_store(
     content: str,
@@ -213,10 +200,14 @@ def memory_store(
 ) -> str:
     """Store a memory in the vector database with semantic embedding.
 
+    Automatically checks for near-duplicates before storing. If a similar
+    memory exists (>85% similarity), returns a warning with the existing ID
+    so you can update it instead.
+
     Args:
         content: The memory text to store (max 5000 chars)
-        memory_type: Category — user, feedback, project, reference, or general
-        memory_id: Custom ID (auto-generated if empty). Use descriptive IDs like 'user_prefers_dark_mode'
+        memory_type: Category — user, feedback, preferences, project, reference, or general
+        memory_id: Custom ID (auto-generated if empty). Use descriptive IDs like 'pref_notify_send_off'
         project: Project name for scoping (empty = global)
         tags: Comma-separated tags for organization
     """
@@ -236,6 +227,30 @@ def memory_store(
 
     if MAX_TOTAL_MEMORIES and not is_update and collection.count() >= MAX_TOTAL_MEMORIES:
         return f"{_prefix()} Error: Database full ({MAX_TOTAL_MEMORIES}). Delete old memories first."
+
+    # Dedup check — find near-duplicates before storing (skip if updating same ID)
+    if not is_update and collection.count() > 0:
+        try:
+            dupes = collection.query(
+                query_texts=[content[:1000]],
+                n_results=min(3, collection.count()),
+            )
+            for i, dist in enumerate(dupes["distances"][0]):
+                if dist < DEDUP_DISTANCE_THRESHOLD:
+                    dupe_id = dupes["ids"][0][i]
+                    if dupe_id == mem_id:
+                        continue
+                    similarity = round((1 - dist) * 100, 1)
+                    dupe_preview = dupes["documents"][0][i][:150]
+                    return (
+                        f"{_prefix()} Near-duplicate found ({similarity}% similar):\n"
+                        f"  Existing: {dupe_id}\n"
+                        f"  Content: {dupe_preview}...\n"
+                        f"  → Use memory_update(memory_id=\"{dupe_id}\", ...) to update it, "
+                        f"or use a unique memory_id to force store."
+                    )
+        except Exception:
+            pass  # Dedup is best-effort, don't block store on errors
 
     metadata = {"type": memory_type, "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S")}
     if project:
@@ -310,8 +325,12 @@ def memory_search(
         mtype = meta.get("type", "general")
         proj = meta.get("project", "")
         proj_tag = f" [{proj}]" if proj else ""
-        dist = f" (distance: {r['distance']})" if r.get("distance") is not None else ""
-        lines.append(f"  [{mtype}] {r['id']}{proj_tag}{dist}")
+        if r.get("distance") is not None:
+            similarity = round((1 - r["distance"]) * 100, 1)
+            sim_str = f" ({similarity}% similar)"
+        else:
+            sim_str = ""
+        lines.append(f"  [{mtype}] {r['id']}{proj_tag}{sim_str}")
         lines.append(f"    {r['content'][:200]}")
         lines.append("")
     return "\n".join(lines)
@@ -391,17 +410,18 @@ def memory_delete(memory_id: str) -> str:
 
 
 @mcp.tool()
-def memory_update(memory_id: str, content: str = "", memory_type: str = "", tags: str = "", project: str = "") -> str:
+def memory_update(memory_id: str, content: str = "", memory_type: str = "", tags: str = "", project: str = "", mode: str = "replace") -> str:
     """Update an existing memory's content or metadata.
 
     Args:
         memory_id: The ID of the memory to update
         content: New content (empty = keep existing, max 5000 chars)
         memory_type: New type (empty = keep existing)
-        tags: New tags (empty = keep existing)
+        tags: New tags (empty = keep existing). Prefix with '+' to append (e.g. '+newtag,other') instead of replacing all tags
         project: New project scope (empty = keep existing)
+        mode: Content update mode — 'replace' (default, overwrites), 'append' (adds after existing), 'prepend' (adds before existing)
     """
-    if content and len(content) > MAX_CONTENT_LENGTH:
+    if content and mode == "replace" and len(content) > MAX_CONTENT_LENGTH:
         return f"{_prefix()} Error: Content too long ({len(content)} chars). Max {MAX_CONTENT_LENGTH}."
 
     collection = get_collection()
@@ -409,35 +429,163 @@ def memory_update(memory_id: str, content: str = "", memory_type: str = "", tags
     if not existing["ids"]:
         return f"{_prefix()} Not found: {memory_id}"
 
-    # Audit log the update (old content hash for diffing)
     old_content = existing["documents"][0] if existing["documents"] else ""
+
+    # Audit log the update (old content hash for diffing)
     audit_log_write("update", memory_id,
                     content_hash=hashlib.sha256(old_content.encode()).hexdigest()[:16],
                     metadata=existing["metadatas"][0] if existing["metadatas"] else None,
-                    reason="content_changed" if content else "metadata_only")
+                    reason=f"content_{mode}" if content else "metadata_only")
 
     metadata = existing["metadatas"][0]
     metadata["updated"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     if memory_type:
         metadata["type"] = memory_type
+
+    # Tag handling: '+tag1,tag2' appends, otherwise replaces
     if tags:
-        metadata["tags"] = tags
+        if tags.startswith("+"):
+            existing_tags = set(t.strip() for t in (metadata.get("tags", "") or "").split(",") if t.strip())
+            new_tags = set(t.strip() for t in tags[1:].split(",") if t.strip())
+            metadata["tags"] = ",".join(sorted(existing_tags | new_tags))
+        else:
+            metadata["tags"] = tags
+
     if project:
         metadata["project"] = project
 
-    doc = content if content else existing["documents"][0]
+    # Content mode handling
+    if content:
+        if mode == "append":
+            doc = old_content.rstrip() + "\n\n" + content
+        elif mode == "prepend":
+            doc = content + "\n\n" + old_content.lstrip()
+        else:
+            doc = content
+
+        if len(doc) > MAX_CONTENT_LENGTH:
+            return f"{_prefix()} Error: Combined content too long ({len(doc)} chars). Max {MAX_CONTENT_LENGTH}."
+    else:
+        doc = old_content
+
     collection.update(ids=[memory_id], documents=[doc], metadatas=[metadata])
 
     changed = []
     if content:
-        changed.append("content")
+        changed.append(f"content ({mode})")
     if memory_type:
         changed.append(f"type={memory_type}")
     if tags:
-        changed.append(f"tags={tags}")
+        changed.append(f"tags={metadata.get('tags', '')}")
     if project:
         changed.append(f"project={project}")
     return f"{_prefix()} Updated: {memory_id} ({', '.join(changed) if changed else 'metadata timestamp'})"
+
+
+@mcp.tool()
+def memory_merge(memory_ids: str, new_id: str = "", new_content: str = "") -> str:
+    """Merge multiple related memories into one consolidated memory.
+
+    Combines content from 2+ memories, preserves tags from all sources,
+    keeps the most specific project scope, and deletes the originals.
+
+    Args:
+        memory_ids: Comma-separated IDs of memories to merge (e.g. "mem_a,mem_b,mem_c")
+        new_id: ID for the merged memory (default: first source ID)
+        new_content: Merged content. If empty, concatenates all source contents with separators
+    """
+    ids = [mid.strip() for mid in memory_ids.split(",") if mid.strip()]
+    if len(ids) < 2:
+        return f"{_prefix()} Error: Need at least 2 memory IDs to merge."
+
+    collection = get_collection()
+
+    # Fetch all source memories
+    sources = []
+    for mid in ids:
+        result = collection.get(ids=[mid])
+        if not result["ids"]:
+            return f"{_prefix()} Error: Memory '{mid}' not found."
+        sources.append({
+            "id": mid,
+            "content": result["documents"][0],
+            "metadata": result["metadatas"][0],
+        })
+
+    # Determine merged metadata
+    all_tags = set()
+    all_projects = set()
+    memory_type = sources[0]["metadata"].get("type", "general")
+    for s in sources:
+        meta = s["metadata"]
+        tags_str = meta.get("tags", "")
+        if tags_str:
+            all_tags.update(t.strip() for t in tags_str.split(",") if t.strip())
+        proj = meta.get("project", "")
+        if proj:
+            all_projects.add(proj)
+        # Use most specific type (preferences > feedback > project > reference > user > general)
+        stype = meta.get("type", "general")
+        if stype == memory_type:
+            continue
+        # Keep the type from the first source unless overridden
+
+    # Build merged content
+    if new_content:
+        merged_content = new_content
+    else:
+        parts = []
+        for s in sources:
+            parts.append(s["content"].strip())
+        merged_content = "\n\n".join(parts)
+
+    if len(merged_content) > MAX_CONTENT_LENGTH:
+        return (
+            f"{_prefix()} Error: Merged content too long ({len(merged_content)} chars). "
+            f"Max {MAX_CONTENT_LENGTH}. Provide condensed new_content."
+        )
+
+    merged_id = new_id or sources[0]["id"]
+    merged_project = list(all_projects)[0] if len(all_projects) == 1 else (
+        ",".join(sorted(all_projects)) if all_projects else ""
+    )
+
+    merged_metadata = {
+        "type": memory_type,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "merged_from": ",".join(ids),
+    }
+    if all_tags:
+        merged_metadata["tags"] = ",".join(sorted(all_tags))
+    if merged_project:
+        merged_metadata["project"] = merged_project
+
+    # Audit log: record merge
+    for s in sources:
+        audit_log_write("merge_source", s["id"],
+                        content_hash=hashlib.sha256(s["content"].encode()).hexdigest()[:16],
+                        metadata=s["metadata"],
+                        reason=f"merged_into:{merged_id}")
+
+    # Delete originals (except the one being reused as merged_id)
+    for s in sources:
+        if s["id"] != merged_id:
+            collection.delete(ids=[s["id"]])
+
+    # Upsert the merged memory
+    collection.upsert(ids=[merged_id], documents=[merged_content], metadatas=[merged_metadata])
+
+    audit_log_write("merge_result", merged_id,
+                    content_hash=hashlib.sha256(merged_content.encode()).hexdigest()[:16],
+                    metadata=merged_metadata,
+                    reason=f"merged_{len(ids)}_memories")
+
+    return (
+        f"{_prefix()} Merged {len(ids)} memories into: {merged_id}\n"
+        f"  Sources: {', '.join(ids)}\n"
+        f"  Tags: {merged_metadata.get('tags', 'none')}\n"
+        f"  Content: {len(merged_content)} chars"
+    )
 
 
 @mcp.tool()

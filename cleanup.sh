@@ -5,34 +5,19 @@
 # Called by SessionStart hook
 
 /usr/bin/python3 -W ignore - 2>/dev/null <<'PYEOF'
-import os, time, warnings, sys
+import os, time, sys
 from datetime import datetime, timedelta
 from collections import defaultdict
 
-warnings.filterwarnings("ignore")
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
-os.environ["ORT_LOG_LEVEL"] = "ERROR"
-os.environ["OMP_NUM_THREADS"] = "2"
-os.environ["ONNXRUNTIME_SESSION_THREAD_POOL_SIZE"] = "2"
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/cortex/lib"))
+from chroma_client import get_client, get_collection
 
-DB_PATH = os.path.expanduser("~/.claude/cortex-db")
 EVAL_MAX_AGE_DAYS = 30
 COMPACT_MAX_AGE_DAYS = 60
 DUPLICATE_THRESHOLD = 0.1  # cosine distance below this = near-duplicate
 
 try:
-    _fd = os.dup(2)
-    _dn = os.open(os.devnull, os.O_WRONLY)
-    os.dup2(_dn, 2)
-    os.close(_dn)
-    try:
-        import chromadb
-    finally:
-        os.dup2(_fd, 2)
-        os.close(_fd)
-
-    client = chromadb.PersistentClient(path=DB_PATH)
-    col = client.get_or_create_collection("claude_memories")
+    col = get_collection()
 
     if col.count() == 0:
         print("[cortex cleanup] Nothing to prune (empty collection)")

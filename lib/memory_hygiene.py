@@ -19,28 +19,16 @@ import json
 import os
 import re
 import subprocess
+import sys
 import time
 import warnings
 from collections import defaultdict
 
 warnings.filterwarnings("ignore")
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
-os.environ["ORT_LOG_LEVEL"] = "ERROR"
-os.environ["OMP_NUM_THREADS"] = "2"
-os.environ["ONNXRUNTIME_SESSION_THREAD_POOL_SIZE"] = "2"
 
-# Suppress onnxruntime noise
-_fd = os.dup(2)
-_dn = os.open(os.devnull, os.O_WRONLY)
-os.dup2(_dn, 2)
-os.close(_dn)
-try:
-    import chromadb
-finally:
-    os.dup2(_fd, 2)
-    os.close(_fd)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from chroma_client import get_collection as _get_collection
 
-DB_PATH = os.path.expanduser("~/.claude/cortex-db")
 RECALL_LOG = os.path.expanduser("~/.claude/.cortex_recall_log")
 ACTIVITY_FILE = os.path.expanduser("~/.claude/.cortex_activity")
 AUDIT_LOG = os.path.expanduser("~/.claude/.cortex_audit.jsonl")
@@ -53,8 +41,7 @@ NAS_PREFIXES = ("/remote/", "/colin/")
 
 
 def get_collection():
-    client = chromadb.PersistentClient(path=DB_PATH)
-    return client.get_or_create_collection("claude_memories")
+    return _get_collection()
 
 
 def get_all_memories(col):

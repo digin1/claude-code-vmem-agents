@@ -9,23 +9,10 @@ import warnings
 from collections import Counter
 
 warnings.filterwarnings("ignore")
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
-os.environ["ORT_LOG_LEVEL"] = "ERROR"
 
-# Suppress onnxruntime noise
-_fd = os.dup(2)
-_dn = os.open(os.devnull, os.O_WRONLY)
-os.dup2(_dn, 2)
-os.close(_dn)
-try:
-    import onnxruntime
-    onnxruntime.set_default_logger_severity(3)
-    import chromadb
-finally:
-    os.dup2(_fd, 2)
-    os.close(_fd)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from lib.chroma_client import get_collection as _get_collection
 
-DB_PATH = os.path.expanduser("~/.claude/cortex-db")
 LEDGER_PATH = os.path.expanduser("~/.claude/agent-usage.jsonl")
 
 
@@ -130,8 +117,7 @@ def get_eval_scores():
     """Fetch latest evaluation scores from cortex."""
     scores = {}
     try:
-        client = chromadb.PersistentClient(path=DB_PATH)
-        col = client.get_or_create_collection("claude_memories")
+        col = _get_collection()
         data = col.get(where={"type": "agent_eval"})
         if not data or not data.get("ids") or not data.get("metadatas") or not data.get("documents"):
             return scores

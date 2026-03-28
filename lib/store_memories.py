@@ -13,9 +13,10 @@ import re
 import warnings
 
 warnings.filterwarnings("ignore")
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
 
-DB_PATH = os.path.expanduser("~/.claude/cortex-db")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from chroma_client import get_collection as _get_collection
+
 ACTIVITY_FILE = os.path.expanduser("~/.claude/.cortex_activity")
 
 
@@ -50,10 +51,7 @@ def store_memories(raw):
         items = []
 
     try:
-        import chromadb
-
-        client = chromadb.PersistentClient(path=DB_PATH)
-        col = client.get_or_create_collection("claude_memories")
+        col = _get_collection()
         ts = time.strftime("%Y-%m-%dT%H:%M:%S")
         stored = 0
 

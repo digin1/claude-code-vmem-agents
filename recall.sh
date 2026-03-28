@@ -3,38 +3,24 @@
 # Called by UserPromptSubmit hook — reads JSON from stdin
 # Outputs JSON with additionalContext for silent injection into Claude's context
 #
-# Two modes:
-#   FIRST MESSAGE  — comprehensive project-aware context load
-#                    (all user/feedback + project-specific + global memories)
-#   SUBSEQUENT     — targeted semantic search with project boost
+# Safety: process lock prevents concurrent instances, timeout prevents hangs
 
 INPUT=$(cat)
 
+# ── Process lock: only one recall instance at a time ──
+LOCKFILE="/tmp/cortex-recall.lock"
+exec 200>"$LOCKFILE" 2>/dev/null
+if ! flock -n 200 2>/dev/null; then
+    exit 0
+fi
+
+# ── Timeout: kill self after 8 seconds ──
+( sleep 8; kill $$ 2>/dev/null ) &
+WATCHDOG=$!
+trap 'kill $WATCHDOG 2>/dev/null; wait $WATCHDOG 2>/dev/null; exit 0' EXIT
+
 /usr/bin/python3 -W ignore - "$INPUT" 2>/dev/null <<'PYEOF'
-import sys, json, os, time, warnings
-warnings.filterwarnings("ignore")
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
-os.environ["ORT_LOG_LEVEL"] = "ERROR"
-# Throttle onnxruntime threads — prevents each hook from saturating all cores
-os.environ["OMP_NUM_THREADS"] = "2"
-os.environ["ONNXRUNTIME_SESSION_THREAD_POOL_SIZE"] = "2"
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-# Suppress onnxruntime noise
-_fd = os.dup(2)
-_dn = os.open(os.devnull, os.O_WRONLY)
-os.dup2(_dn, 2)
-os.close(_dn)
-try:
-    import onnxruntime
-    onnxruntime.set_default_logger_severity(3)
-    import chromadb
-finally:
-    os.dup2(_fd, 2)
-    os.close(_fd)
-
-DB_PATH = os.path.expanduser("~/.claude/cortex-db")
-ACTIVITY_FILE = os.path.expanduser("~/.claude/.cortex_activity")
+import sys, json, os, time
 
 raw = sys.argv[1] if len(sys.argv) > 1 else ""
 
@@ -48,10 +34,37 @@ user_prompt = d.get("prompt", "") or d.get("content", "") or raw
 transcript_path = d.get("transcript_path", "")
 cwd = d.get("cwd", "") or os.getcwd()
 
+# Skip recall for automated claude -p subprocess prompts
+_skip_patterns = [
+    "you are a memory extraction system",
+    "you identify reusable workflow patterns",
+    "you evaluate and reconcile an existing fleet",
+    "you are an agent architect",
+    "summarize this session in one sentence",
+    "extract learnings from this coding session",
+    "analyze this coding session for skill",
+    "analyze this coding session for specialized agent",
+    "output a json array of memories",
+    "output a json array of agents",
+    "output only the json array",
+]
+_prompt_lower = user_prompt[:500].lower()
+for _pat in _skip_patterns:
+    if _pat in _prompt_lower:
+        sys.exit(0)
+
+# Skip very short or empty prompts
+if len(user_prompt.strip()) < 5:
+    sys.exit(0)
+
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/cortex/lib"))
+from chroma_client import get_client, get_collection
+
+ACTIVITY_FILE = os.path.expanduser("~/.claude/.cortex_activity")
+
 # Connect to ChromaDB
 try:
-    client = chromadb.PersistentClient(path=DB_PATH)
-    col = client.get_or_create_collection("claude_memories")
+    col = get_collection()
     if col.count() == 0:
         sys.exit(0)
 except Exception:
@@ -83,345 +96,293 @@ def is_first_message(transcript_path):
                             if len(part.get('text', '')) > 10:
                                 return False
     except:
-        pass
+        return True
     return True
 
 
 # ================================================================
-# Detect project(s) from working directory
+# Detect project from cwd
 # ================================================================
-def detect_projects(cwd):
-    """Match cwd path components against known cortex project names."""
-    if not cwd:
-        return set()
-
-    # Get all unique project names from DB
-    all_data = col.get(include=["metadatas"])
-    known_projects = set()
-    for m in all_data["metadatas"]:
-        p = m.get("project", "")
-        if p and p != "global":
-            known_projects.add(p)
-
-    # Match: any known project name that appears as a path component
-    cwd_lower = cwd.lower()
-    matched = set()
-    for proj in known_projects:
-        if proj.lower() in cwd_lower:
-            matched.add(proj)
-
-    return matched
+def detect_project(cwd):
+    """Derive project name(s) from cwd path components."""
+    projects = set()
+    parts = cwd.replace("\\", "/").split("/")
+    for p in parts:
+        if p and p not in ("home", "Users", "projects", "src", "work", "dev", "repos", "code", ".claude"):
+            if len(p) > 2 and not p.startswith("."):
+                projects.add(p)
+    return projects
 
 
-matched_projects = detect_projects(cwd)
 first_msg = is_first_message(transcript_path)
+projects = detect_project(cwd)
 
-# Detect "remember" intent globally — applies to both first and subsequent messages
-remember_keywords = ["remember", "recall", "do you know", "have you seen",
-                     "did we", "last time", "previously", "earlier session"]
-prompt_lower = user_prompt.lower()
-is_remember_query = any(kw in prompt_lower for kw in remember_keywords)
+# Remember keywords trigger more aggressive search
+remember_kw = any(k in user_prompt.lower() for k in
+    ["remember", "recall", "did we", "last time", "do you know", "previously", "earlier session"])
 
 
 # ================================================================
-# FIRST MESSAGE: Comprehensive project-aware context load
+# FIRST MESSAGE: comprehensive context load
 # ================================================================
 if first_msg:
     all_data = col.get(include=["documents", "metadatas"])
-
-    sections = {
-        "user": [],
-        "feedback": [],
-        "project": [],
-        "reference": []
-    }
+    results = []
 
     for i in range(len(all_data["ids"])):
-        mid = all_data["ids"][i]
-        doc = all_data["documents"][i]
         meta = all_data["metadatas"][i]
         mtype = meta.get("type", "general")
-        mproject = meta.get("project", "")
+        proj = meta.get("project", "")
 
-        # Skip agent evals — not useful as conversation context
+        # Skip agent evals and inventory memories (injected separately from filesystem)
         if mtype == "agent_eval":
             continue
-
-        # USER + FEEDBACK: always include (cross-project knowledge)
-        if mtype == "user":
-            sections["user"].append((mid, doc, meta))
-        elif mtype == "feedback":
-            sections["feedback"].append((mid, doc, meta))
-
-        # PROJECT: include if matches current project, is global, or untagged
-        elif mtype == "project":
-            if mproject in matched_projects or mproject == "global" or mproject == "":
-                sections["project"].append((mid, doc, meta))
-
-        # REFERENCE: always include — references are high-value and few in number
-        elif mtype == "reference":
-            sections["reference"].append((mid, doc, meta))
-
-    # Also do semantic search for cross-project hits the above missed
-    # (e.g. user asks about glabheatmap while in grantlab-dockerswarm)
-    seen_ids = {mid for section in sections.values() for mid, _, _ in section}
-
-    if len(user_prompt) >= 3:
-        try:
-            # More results and looser threshold for "remember" queries
-            sem_n = min(10 if is_remember_query else 5, col.count())
-            sem_threshold = 0.8 if is_remember_query else 0.65
-
-            sem_results = col.query(
-                query_texts=[user_prompt[:400]],
-                n_results=sem_n
-            )
-            cross_project = []
-            for i in range(len(sem_results["ids"][0])):
-                mid = sem_results["ids"][0][i]
-                dist = sem_results["distances"][0][i] if sem_results.get("distances") else 1.0
-                meta = sem_results["metadatas"][0][i]
-                if mid not in seen_ids and dist < sem_threshold and meta.get("type") != "agent_eval":
-                    cross_project.append((mid, sem_results["documents"][0][i], meta))
-                    seen_ids.add(mid)
-        except:
-            cross_project = []
-    else:
-        cross_project = []
-
-    # Build structured output
-    proj_label = ', '.join(sorted(matched_projects)) if matched_projects else "unknown"
-    lines = [f"[cortex] Session context loaded for project: {proj_label}"]
-
-    headers = {
-        "user": "User Profile",
-        "feedback": "Rules & Preferences",
-        "project": "Project Context",
-        "reference": "References & Locations"
-    }
-
-    # Progressive disclosure: truncate long memories to save tokens
-    # Full content available via mcp__cortex__memory_search when needed
-    SUMMARY_LIMIT = 250
-
-    total = 0
-    for section_key in ["user", "feedback", "project", "reference"]:
-        items = sections[section_key]
-        if not items:
+        if all_data["ids"][i].startswith("inventory_"):
             continue
-        total += len(items)
-        lines.append(f"\n== {headers[section_key]} ({len(items)}) ==")
-        for mid, doc, meta in items:
-            # Show project tag on project/reference items for clarity
-            proj_tag = ""
-            if section_key in ("project", "reference"):
-                p = meta.get("project", "")
-                if p:
-                    proj_tag = f" [{p}]"
-            summary = doc[:SUMMARY_LIMIT] + ("..." if len(doc) > SUMMARY_LIMIT else "")
-            lines.append(f"  {mid}{proj_tag}: {summary}")
 
-    # Add cross-project semantic hits
-    if cross_project:
-        total += len(cross_project)
-        lines.append(f"\n== Also Relevant (from other projects) ({len(cross_project)}) ==")
-        for mid, doc, meta in cross_project:
-            p = meta.get("project", "")
-            proj_tag = f" [{p}]" if p else ""
-            summary = doc[:SUMMARY_LIMIT] + ("..." if len(doc) > SUMMARY_LIMIT else "")
-            lines.append(f"  {mid}{proj_tag}: {summary}")
+        # Always include: user, feedback, preferences (cross-project)
+        if mtype in ("user", "feedback", "preferences"):
+            results.append({"id": all_data["ids"][i], "type": mtype, "project": proj,
+                           "content": all_data["documents"][i][:250]})
+            continue
 
-    if total > 0:
-        # Progressive disclosure hint
-        lines.append(f"\n[cortex] Showing summaries ({SUMMARY_LIMIT} chars). Use mcp__cortex__memory_search for full content.")
+        # Include project memories if project matches
+        if proj and any(proj.lower() in p.lower() or p.lower() in proj.lower() for p in projects):
+            results.append({"id": all_data["ids"][i], "type": mtype, "project": proj,
+                           "content": all_data["documents"][i][:250]})
+            continue
 
-        with open(ACTIVITY_FILE, "w") as af:
-            af.write(f"loaded {total} (session start)")
+        # Include global/untagged project and reference memories
+        if not proj and mtype in ("project", "reference"):
+            results.append({"id": all_data["ids"][i], "type": mtype, "project": proj,
+                           "content": all_data["documents"][i][:250]})
+            continue
 
-        # Log recalled IDs for hygiene tracking
-        try:
-            recall_log = os.path.expanduser("~/.claude/.cortex_recall_log")
-            all_recalled_ids = []
-            for section in sections.values():
-                for mid, _, _ in section:
-                    all_recalled_ids.append(mid)
-            for mid, _, _ in cross_project:
-                all_recalled_ids.append(mid)
-            with open(recall_log, "a") as rl:
-                rl.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {','.join(all_recalled_ids)}\n")
-        except Exception:
-            pass
+        # Include all reference memories (they're high-value, few in number)
+        if mtype == "reference":
+            results.append({"id": all_data["ids"][i], "type": mtype, "project": proj,
+                           "content": all_data["documents"][i][:250]})
 
-        context_text = '\n'.join(lines)
+    # Also do a semantic search for anything the above might have missed
+    n_search = 10 if remember_kw else 5
+    threshold = 0.8 if remember_kw else 0.65
+    try:
+        search = col.query(query_texts=[user_prompt[:400]], n_results=min(n_search, col.count()))
+        existing_ids = {r["id"] for r in results}
+        for i in range(len(search["ids"][0])):
+            sid = search["ids"][0][i]
+            if sid in existing_ids:
+                continue
+            dist = search["distances"][0][i] if search.get("distances") else 1.0
+            if dist < threshold:
+                meta = search["metadatas"][0][i]
+                if meta.get("type") == "agent_eval":
+                    continue
+                if sid.startswith("inventory_"):
+                    continue
+                results.append({
+                    "id": sid, "type": meta.get("type", "general"),
+                    "project": meta.get("project", ""),
+                    "content": search["documents"][0][i][:250],
+                })
+    except:
+        pass
+
+    # Track recalls
+    try:
+        now = time.strftime("%Y-%m-%dT%H:%M:%S")
+        for r in results:
+            try:
+                existing = col.get(ids=[r["id"]])
+                if existing["ids"]:
+                    meta = dict(existing["metadatas"][0])
+                    meta["recall_count"] = str(int(meta.get("recall_count", "0") or "0") + 1)
+                    meta["last_recalled"] = now
+                    col.update(ids=[r["id"]], metadatas=[meta])
+            except:
+                pass
+    except:
+        pass
+
+    # ── Collect agent & skill inventory (first message only) ──
+    import glob
+
+    def scan_agents():
+        """Scan agent .md files, extract name + description from frontmatter."""
+        agents = []
+        for scope, d in [("project", os.path.join(cwd, ".claude", "agents")),
+                         ("global", os.path.expanduser("~/.claude/agents"))]:
+            if not os.path.isdir(d):
+                continue
+            for f in sorted(glob.glob(os.path.join(d, "*.md"))):
+                name = os.path.splitext(os.path.basename(f))[0]
+                desc = ""
+                try:
+                    with open(f) as fh:
+                        in_front = False
+                        for line in fh:
+                            line = line.strip()
+                            if line == "---" and not in_front:
+                                in_front = True
+                                continue
+                            if line == "---" and in_front:
+                                break
+                            if in_front and line.lower().startswith("description:"):
+                                desc = line.split(":", 1)[1].strip().strip('"').strip("'")
+                except Exception:
+                    pass
+                agents.append(f"  [{scope}] {name}: {desc[:120]}")
+        return agents
+
+    def scan_skills():
+        """Scan skill .md files, extract description from frontmatter."""
+        skills = []
+        for scope, d in [("project", os.path.join(cwd, ".claude", "commands")),
+                         ("global", os.path.expanduser("~/.claude/commands"))]:
+            if not os.path.isdir(d):
+                continue
+            for f in sorted(glob.glob(os.path.join(d, "*.md"))):
+                name = os.path.splitext(os.path.basename(f))[0]
+                desc = ""
+                try:
+                    with open(f) as fh:
+                        in_front = False
+                        for line in fh:
+                            line = line.strip()
+                            if line == "---" and not in_front:
+                                in_front = True
+                                continue
+                            if line == "---" and in_front:
+                                break
+                            if in_front and line.lower().startswith("description:"):
+                                desc = line.split(":", 1)[1].strip().strip('"').strip("'")
+                except Exception:
+                    pass
+                skills.append(f"  [{scope}] /{name}: {desc[:120]}")
+        return skills
+
+    def scan_cached_docs():
+        """Scan ~/.claude/docs/ for cached documentation."""
+        doc_root = os.path.expanduser("~/.claude/docs")
+        if not os.path.isdir(doc_root):
+            return []
+        docs = []
+        for fid in sorted(os.listdir(doc_root)):
+            manifest_path = os.path.join(doc_root, fid, ".manifest.json")
+            if not os.path.isfile(manifest_path):
+                continue
+            try:
+                with open(manifest_path) as f:
+                    m = json.load(f)
+                count = m.get("file_count", "?")
+                docs.append(f"  {fid}: {count} files at ~/.claude/docs/{fid}/")
+            except Exception:
+                docs.append(f"  {fid}: ~/.claude/docs/{fid}/")
+        return docs
+
+    agent_lines = scan_agents()
+    skill_lines = scan_skills()
+    doc_lines = scan_cached_docs()
+
+    lines = []
+    if results:
+        lines.append("[cortex] Recalled memories:")
+        for r in results:
+            proj_tag = f" [{r['project']}]" if r.get("project") else ""
+            lines.append(f"  [{r['type']}] {r['id']}{proj_tag}: {r['content']}")
+
+    if agent_lines:
+        lines.append("\n[cortex] Available agents (use via Agent tool with subagent_type):")
+        lines.extend(agent_lines)
+
+    if skill_lines:
+        lines.append("\n[cortex] Available skills (use via /command or Skill tool):")
+        lines.extend(skill_lines)
+
+    if doc_lines:
+        lines.append("\n[cortex] Cached documentation (read files directly for reference):")
+        lines.extend(doc_lines)
+
+    if lines:
         output = json.dumps({
-            "suppressOutput": True,
             "hookSpecificOutput": {
-                "hookEventName": "UserPromptSubmit",
-                "additionalContext": context_text
+                "additionalContext": "\n".join(lines)
             }
         })
         print(output)
 
-
 # ================================================================
-# SUBSEQUENT MESSAGES: Semantic search with project boost
+# SUBSEQUENT: targeted semantic search
 # ================================================================
 else:
-    if len(user_prompt) < 3:
+    n_search = 8 if remember_kw else 5
+    threshold = 0.85 if remember_kw else 0.75
+
+    try:
+        search = col.query(query_texts=[user_prompt[:400]], n_results=min(n_search, col.count()))
+    except:
         sys.exit(0)
 
-    # Build richer query with assistant context
-    assistant_context = ""
-    if transcript_path and os.path.exists(transcript_path):
+    results = []
+    for i in range(len(search["ids"][0])):
+        dist = search["distances"][0][i] if search.get("distances") else 1.0
+        if dist < threshold:
+            meta = search["metadatas"][0][i]
+            if meta.get("type") == "agent_eval":
+                continue
+            sid = search["ids"][0][i]
+            if sid.startswith("inventory_"):
+                continue
+            results.append({
+                "id": sid,
+                "type": meta.get("type", "general"),
+                "project": meta.get("project", ""),
+                "content": search["documents"][0][i][:200],
+            })
+
+    # Detect library mentions and check doc cache
+    doc_hints = []
+    doc_root = os.path.expanduser("~/.claude/docs")
+    registry_path = os.path.expanduser("~/.claude/skills/cortex/lib/knowledge_registry.json")
+    try:
+        with open(registry_path) as f:
+            _reg = json.load(f)
+        prompt_lower = user_prompt.lower()
+        for fid, entry in _reg.get("frameworks", {}).items():
+            name = entry.get("name", "").lower()
+            if name in prompt_lower or fid.replace("-", " ") in prompt_lower:
+                doc_dir = os.path.join(doc_root, fid)
+                if os.path.isdir(doc_dir) and os.path.isfile(os.path.join(doc_dir, ".manifest.json")):
+                    doc_hints.append(f"  Read ~/.claude/docs/{fid}/ for {entry['name']} reference")
+                else:
+                    doc_hints.append(f"  {entry['name']}: not cached — use context7 query-docs tool")
+    except Exception:
+        pass
+
+    lines = []
+    if results:
+        # Track recalls
         try:
-            last_assistant_msgs = []
-            with open(transcript_path, 'r') as f:
-                for line in f:
-                    try:
-                        entry = json.loads(line.strip())
-                    except:
-                        continue
-                    msg = entry.get('message', entry)
-                    if msg.get('role') != 'assistant':
-                        continue
-                    raw_content = msg.get('content', '')
-                    text = ''
-                    if isinstance(raw_content, str):
-                        text = raw_content.strip()
-                    elif isinstance(raw_content, list):
-                        for part in raw_content:
-                            if isinstance(part, dict) and part.get('type') == 'text':
-                                t = part.get('text', '').strip()
-                                if t:
-                                    text += t + ' '
-                    text = text.strip()
-                    if len(text) > 20:
-                        last_assistant_msgs.append(text[:300])
-            if last_assistant_msgs:
-                assistant_context = ' '.join(last_assistant_msgs[-2:])[:500]
+            now = time.strftime("%Y-%m-%dT%H:%M:%S")
+            recall_ids = [r["id"] for r in results]
+            with open(os.path.expanduser("~/.claude/.cortex_recall_log"), "a") as f:
+                f.write(f"{now} {','.join(recall_ids)}\n")
         except:
             pass
 
-    search_query = user_prompt[:400]
-    if assistant_context:
-        search_query = f"{user_prompt[:300]} {assistant_context[:200]}"
+        lines.append("[cortex] Recalled memories relevant to this message:")
+        for r in results:
+            proj_tag = f" [{r['project']}]" if r.get("project") else ""
+            lines.append(f"  [{r['type']}] {r['id']}{proj_tag}: {r['content']}")
 
-    # ── LLM query expansion via claude -p (DISABLED) ───────────────
-    # BUG: claude -p returns empty stdout on v2.1.83 despite generating
-    # tokens (output_tokens > 0, result: ""). Filed as:
-    #   https://github.com/anthropics/claude-code/issues/38774
-    # TODO: Re-enable when the bug is fixed. Test with:
-    #   echo "say hello" | claude -p --model haiku --max-turns 1
-    # If that produces output, uncomment the block below.
-    expanded_query = ""
-    # try:
-    #     import subprocess as _sp
-    #     _expand_prompt = (
-    #         "Extract 5-10 search keywords/phrases that would help find "
-    #         "stored memories about tools, credentials, APIs, config, or "
-    #         "project context needed to fulfil this request. "
-    #         "Return ONLY the keywords, comma-separated, nothing else.\n\n"
-    #         f"User message: {user_prompt[:300]}\n"
-    #     )
-    #     if assistant_context:
-    #         _expand_prompt += f"Recent conversation context: {assistant_context[:200]}\n"
-    #     _proc = _sp.run(
-    #         ["claude", "-p", "--model", "haiku", "--max-turns", "1"],
-    #         input=_expand_prompt, capture_output=True, text=True, timeout=4
-    #     )
-    #     if _proc.returncode == 0 and _proc.stdout.strip():
-    #         expanded_query = _proc.stdout.strip()[:300]
-    # except Exception:
-    #     pass  # Timeout or missing claude — fall back to regular search
+    if doc_hints:
+        lines.append("\n[cortex] Relevant documentation:")
+        lines.extend(doc_hints)
 
-    # ── Multi-query ChromaDB search ────────────────────────────────
-    n_results = min(12 if is_remember_query else 8, col.count())
-
-    # Primary search: user prompt + assistant context
-    results = col.query(
-        query_texts=[search_query],
-        n_results=n_results
-    )
-
-    # Secondary search: LLM-expanded keywords (if available)
-    expanded_results = None
-    if expanded_query:
-        try:
-            expanded_results = col.query(
-                query_texts=[expanded_query],
-                n_results=n_results
-            )
-        except Exception:
-            pass
-
-    # Merge results: keep best (lowest) distance per memory ID
-    best = {}  # mid → (dist, index, source_results)
-    for src in [results, expanded_results]:
-        if src is None:
-            continue
-        for i in range(len(src["ids"][0])):
-            mid = src["ids"][0][i]
-            dist = src["distances"][0][i] if src.get("distances") else 1.0
-            if mid not in best or dist < best[mid][0]:
-                best[mid] = (dist, i, src)
-
-    relevant = []
-    for mid, (dist, i, src) in best.items():
-        meta = src["metadatas"][0][i]
-        mem_type = meta.get("type", "general")
-        mem_project = meta.get("project", "")
-
-        if mem_type == "agent_eval":
-            continue
-
-        # Recall boost: frequently recalled memories get a distance discount (closer = better)
-        recall_count = int(meta.get("recall_count", "0") or "0")
-        if recall_count >= 5:
-            dist *= 0.85   # 15% boost for heavily recalled memories
-        elif recall_count >= 2:
-            dist *= 0.92   # 8% boost for moderately recalled
-
-        # Boosted thresholds for "remember" queries, relaxed for project matches
-        if is_remember_query:
-            threshold = 0.85 if mem_project in matched_projects else 0.75
-        else:
-            threshold = 0.7 if mem_project in matched_projects else 0.6
-
-        if dist < threshold:
-            relevant.append({
-                "id": mid,
-                "content": src["documents"][0][i][:400],
-                "type": mem_type,
-                "project": mem_project,
-                "distance": round(dist, 3)
-            })
-
-    if relevant:
-        with open(ACTIVITY_FILE, "w") as af:
-            af.write(f"recalled {len(relevant)}")
-
-        # Log recalled IDs for hygiene tracking
-        try:
-            recall_log = os.path.expanduser("~/.claude/.cortex_recall_log")
-            recalled_ids = [r["id"] for r in relevant]
-            with open(recall_log, "a") as rl:
-                rl.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {','.join(recalled_ids)}\n")
-        except Exception:
-            pass
-
-        context_lines = ["[cortex] Recalled memories relevant to this message:"]
-        for r in relevant:
-            proj_tag = f" [{r['project']}]" if r.get('project') else ""
-            context_lines.append(
-                f"  [{r['type']}] {r['id']}{proj_tag}: {r['content']}"
-            )
-
-        context_text = '\n'.join(context_lines)
+    if lines:
         output = json.dumps({
-            "suppressOutput": True,
             "hookSpecificOutput": {
-                "hookEventName": "UserPromptSubmit",
-                "additionalContext": context_text
+                "additionalContext": "\n".join(lines)
             }
         })
         print(output)

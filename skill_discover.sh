@@ -135,116 +135,126 @@ fi
 echo "[skill-discover] Uncovered frameworks in $PROJECT_NAME: $UNCOVERED"
 
 # ================================================================
-# Phase 4: Build framework details for the prompt
+# Phase 4: Collect project context for AI-driven skill creation
 # ================================================================
-FRAMEWORK_DETAILS=$(echo "$UNCOVERED" | /usr/bin/python3 -c "
+
+# Collect existing skill names + descriptions
+EXISTING_SKILLS=$(/usr/bin/python3 -W ignore -c "
+import os, glob
+for scope, d in [('project', '$CWD/.claude/commands'), ('global', os.path.expanduser('~/.claude/commands'))]:
+    if not os.path.isdir(d): continue
+    for f in sorted(glob.glob(os.path.join(d, '*.md'))):
+        name = os.path.basename(f).replace('.md', '')
+        desc = ''
+        with open(f) as fh:
+            for line in fh:
+                if line.strip().startswith('description:'):
+                    desc = line.split(':', 1)[1].strip()
+                    break
+        print(f'  /{name} ({scope}): {desc}')
+" 2>/dev/null)
+
+# Scan project structure for context (file tree + key files)
+PROJECT_CONTEXT=$(/usr/bin/python3 -W ignore -c "
+import os, sys
+cwd = '$CWD'
+# Get directory structure (2 levels deep, skip hidden/node_modules/venv)
+skip = {'.git','.claude','node_modules','__pycache__','venv','.venv','dist','build','.next'}
+lines = []
+for root, dirs, files in os.walk(cwd):
+    dirs[:] = [d for d in dirs if d not in skip]
+    depth = root.replace(cwd, '').count(os.sep)
+    if depth > 2: continue
+    indent = '  ' * depth
+    lines.append(f'{indent}{os.path.basename(root)}/')
+    for f in sorted(files)[:10]:
+        lines.append(f'{indent}  {f}')
+    if len(files) > 10:
+        lines.append(f'{indent}  ... +{len(files)-10} more')
+    if len(lines) > 80:
+        lines.append('  ... (truncated)')
+        break
+print('\n'.join(lines[:80]))
+" 2>/dev/null)
+
+# Collect cortex memories for this project
+PROJECT_MEMORIES=$(/usr/bin/python3 -W ignore -c "
+import os, sys
+sys.path.insert(0, os.path.expanduser('~/.claude/skills/cortex/lib'))
+from chroma_client import get_client, get_collection
+try:
+    col = get_collection()
+    data = col.get(where={'project': '$PROJECT_NAME'}, include=['documents','metadatas'])
+    for i in range(len(data['ids'])):
+        t = data['metadatas'][i].get('type','')
+        if t == 'agent_eval': continue
+        print(f'  [{t}] {data[\"ids\"][i]}: {data[\"documents\"][i][:150]}')
+except: pass
+" 2>/dev/null)
+
+# Framework list for reference
+FRAMEWORK_LIST=$(echo "$UNCOVERED" | /usr/bin/python3 -c "
 import sys, json
 try:
     fws = json.loads(sys.stdin.read())
     for f in fws:
-        eco = f.get('ecosystem', 'unknown')
-        ver = f.get('version', '')
-        ver_str = f' v{ver}' if ver else ''
-        print(f'- {f[\"name\"]} ({f[\"id\"]}){ver_str}: ecosystem={eco}')
+        print(f'- {f[\"name\"]} ({f[\"id\"]})')
 except: pass
 " 2>/dev/null)
 
-# Collect existing skill names for the prompt
-EXISTING_SKILLS=""
-if [ -d "$HOME/.claude/commands" ]; then
-    EXISTING_SKILLS=$(ls "$HOME/.claude/commands/"*.md 2>/dev/null | xargs -I{} basename {} .md | head -20)
-fi
-if [ -d "$CWD/.claude/commands" ]; then
-    PROJECT_SKILLS=$(ls "$CWD/.claude/commands/"*.md 2>/dev/null | xargs -I{} basename {} .md | head -20)
-    if [ -n "$PROJECT_SKILLS" ]; then
-        EXISTING_SKILLS="$EXISTING_SKILLS
-$PROJECT_SKILLS"
-    fi
-fi
-
 # ================================================================
-# Phase 5: Build prompt safely and call claude -p (sonnet)
+# Phase 5: AI-driven skill creation via claude -p
 # ================================================================
 PROMPT_FILE=$(mktemp /tmp/cortex_skill_prompt.XXXXXX)
 trap "rm -f '$PROMPT_FILE'" EXIT
 
-# Build prompt via Python to sanitize all user-controlled values
-/usr/bin/python3 -W ignore - "$FRAMEWORK_DETAILS" "$PROJECT_NAME" "$CWD" "$EXISTING_SKILLS" "$PROMPT_FILE" 2>/dev/null <<'PYEOF'
-import sys
-fw_details = sys.argv[1] if len(sys.argv) > 1 else ""
-proj_name = sys.argv[2] if len(sys.argv) > 2 else "unknown"
-proj_dir = sys.argv[3] if len(sys.argv) > 3 else ""
-existing = sys.argv[4] if len(sys.argv) > 4 else "(none)"
-out_file = sys.argv[5] if len(sys.argv) > 5 else "/dev/null"
+cat > "$PROMPT_FILE" <<PROMPT_EOF
+You are a skill architect for Claude Code. Analyze this project's ACTUAL code structure, existing skills, and accumulated knowledge to generate the most useful slash-command skills.
 
-prompt = f"""You are a skill architect for Claude Code. Generate reusable slash-command skill files (.md) for the detected frameworks.
+=== DETECTED FRAMEWORKS ===
+${FRAMEWORK_LIST}
 
-=== DETECTED FRAMEWORKS (need skills) ===
-{fw_details}
+=== PROJECT STRUCTURE ===
+${PROJECT_CONTEXT}
+
+=== EXISTING SKILLS (don't duplicate) ===
+${EXISTING_SKILLS:-  (none)}
+
+=== PROJECT MEMORIES (accumulated knowledge) ===
+${PROJECT_MEMORIES:-  (none)}
 
 === PROJECT ===
-Name: {proj_name}
-Directory: {proj_dir}
+Name: ${PROJECT_NAME}
+Directory: ${CWD}
 
-=== EXISTING SKILL COMMANDS (don't duplicate) ===
-{existing or '(none)'}
+## YOUR TASK
+
+Based on the ACTUAL project structure and accumulated knowledge (not just framework names), decide what skills would be most useful. Consider:
+
+1. What workflows does this project actually need? (Look at the file structure)
+2. What debugging patterns would help? (Look at the memories for past issues)
+3. What gaps exist in the current skills? (Look at existing skills)
+4. What scaffolding would save time? (Look at the project's conventions)
 
 ## RULES
 
-1. Output a JSON array. NO markdown wrapping, NO explanation — JUST the JSON array.
-2. Maximum 5 skills TOTAL across all frameworks.
-3. Pick the MOST USEFUL skills: scaffolding, testing, debugging, common patterns.
-4. Each skill must be DISTINCT and actionable — not generic advice.
-5. Skip overly generic skills like "lint" or "format" — those are editor-level.
+1. Output a JSON array. NO markdown wrapping — JUST the JSON array.
+2. Maximum 5 skills.
+3. Skills must be SPECIFIC to this project's actual patterns, not generic framework advice.
+4. Reference actual file paths, container names, and conventions from the project structure.
+5. Skip skills that duplicate existing ones.
 
 ## Scope
+- "project": references project-specific paths/conventions (default)
+- "global": generic cross-project utility
 
-- "project": framework-specific (goes in project .claude/commands/)
-- "global": cross-project utility (goes in ~/.claude/commands/)
-- Default to "project" unless truly generic across all projects.
+## Output Format
+[{"scope": "project", "filename": "kebab-case.md", "content": "---\ndescription: One-line description\n---\n\nDetailed instructions with \$ARGUMENTS placeholder...\nReference actual project paths and conventions."}]
 
-## Skill .md Format
+If no new skills needed: []
+PROMPT_EOF
 
-```
----
-description: One-line description shown in command palette
----
-
-Detailed instructions for Claude when user invokes this command.
-Use $ARGUMENTS to capture user input after the command name.
-```
-
-## Quality — IMPORTANT
-
-The skill body must contain SPECIFIC, ACTIONABLE instructions, not vague platitudes. Include:
-
-- Framework-specific conventions and patterns (e.g., FastAPI uses async def, Depends() for DI)
-- File structure conventions (e.g., Next.js app router uses app/ directory)
-- Testing patterns (e.g., use TestClient for FastAPI, @testing-library for React)
-- Error handling idioms specific to the framework
-- The prompt should tell Claude HOW to implement, not just WHAT to implement
-
-Example of a GOOD skill body (FastAPI endpoint):
-"Create a new FastAPI endpoint. Follow these conventions:
-1. Use async def for the route handler
-2. Define Pydantic models for request body and response
-3. Use Depends() for any shared dependencies (db session, auth, etc.)
-4. Add proper HTTP status codes (201 for creation, 404 for not found)
-5. Include OpenAPI metadata: summary, description, response_model
-6. Add the route to the appropriate router in app/api/
-7. Write a test using TestClient that covers success + error cases
-8. Use $ARGUMENTS as the endpoint description/purpose"
-
-## Output
-
-[{{"scope": "project", "filename": "kebab-case-name.md", "content": "---\\ndescription: What it does\\n---\\n\\nDetailed instructions..."}}]
-"""
-
-with open(out_file, 'w') as f:
-    f.write(prompt)
-PYEOF
-
-SKILL_RESULT=$(claude -p --model sonnet --mcp-config '{}' --strict-mcp-config < "$PROMPT_FILE" 2>/dev/null)
+SKILL_RESULT=$(claude -p --bare --model sonnet < "$PROMPT_FILE" 2>/dev/null)
 
 if [ -z "$SKILL_RESULT" ]; then
     echo "[skill-discover] No skill proposals generated"
@@ -282,18 +292,10 @@ if [ "$CREATED" -gt 0 ] 2>/dev/null; then
 
     # Store discovery record in cortex
     /usr/bin/python3 -W ignore - "$PROJECT_NAME" "$UNCOVERED" "$CREATED" 2>/dev/null <<'PYEOF'
-import sys, os, json, time, warnings
-warnings.filterwarnings("ignore")
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
-os.environ["ORT_LOG_LEVEL"] = "ERROR"
+import sys, os, json, time
 
-_fd = os.dup(2)
-_dn = os.open(os.devnull, os.O_WRONLY)
-os.dup2(_dn, 2); os.close(_dn)
-try:
-    import chromadb
-finally:
-    os.dup2(_fd, 2); os.close(_fd)
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/cortex/lib"))
+from chroma_client import get_client, get_collection
 
 project = sys.argv[1] if len(sys.argv) > 1 else "unknown"
 try:
@@ -304,10 +306,8 @@ count = sys.argv[3] if len(sys.argv) > 3 else "0"
 
 framework_names = ", ".join(f.get("name", f.get("id", "?")) for f in uncovered) if uncovered else "unknown"
 
-DB_PATH = os.path.expanduser("~/.claude/cortex-db")
 try:
-    client = chromadb.PersistentClient(path=DB_PATH)
-    col = client.get_or_create_collection("claude_memories")
+    col = get_collection()
 
     memory_id = f"skill_discovery_{project}"
     content = (

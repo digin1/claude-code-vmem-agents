@@ -36,25 +36,15 @@ fi
 # Returns: project_needs,global_needs or empty
 # ================================================================
 NEEDS=$(/usr/bin/python3 -W ignore - "$CWD" 2>/dev/null <<'PYEOF'
-import sys, os, glob, warnings
-warnings.filterwarnings("ignore")
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
-os.environ["ORT_LOG_LEVEL"] = "ERROR"
+import sys, os, glob
 
-_fd = os.dup(2)
-_dn = os.open(os.devnull, os.O_WRONLY)
-os.dup2(_dn, 2); os.close(_dn)
-try:
-    import chromadb
-finally:
-    os.dup2(_fd, 2); os.close(_fd)
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/cortex/lib"))
+from chroma_client import get_client, get_collection
 
-DB_PATH = os.path.expanduser("~/.claude/cortex-db")
 cwd = sys.argv[1] if len(sys.argv) > 1 else ""
 
 try:
-    client = chromadb.PersistentClient(path=DB_PATH)
-    col = client.get_or_create_collection("claude_memories")
+    col = get_collection()
     if col.count() == 0:
         sys.exit(0)
 
@@ -81,33 +71,11 @@ try:
         if mem_count < 3:
             continue
 
-        # Count existing project agents
-        agent_dir = os.path.join(cwd, ".claude", "agents")
-        proj_agents = 0
-        if os.path.isdir(agent_dir):
-            proj_agents = len([f for f in os.listdir(agent_dir)
-                              if f.endswith(".md") and not f.startswith(".")])
+        # Always consider project for agent creation (dedup handles duplicates)
+        needs.append(proj)
 
-        # Hard cap: skip if already 5+ project agents
-        if proj_agents >= 5:
-            continue
-
-        # Need more agents if: 3+ memories but less than 2 agents
-        if proj_agents < 2:
-            needs.append(proj)
-
-    # Check global: user-level agents needed?
-    user_agent_dir = os.path.expanduser("~/.claude/agents")
-    user_agents = 0
-    if os.path.isdir(user_agent_dir):
-        user_agents = len([f for f in os.listdir(user_agent_dir)
-                          if f.endswith(".md") and not f.startswith(".")])
-
-    # Only bootstrap global if no user agents at all AND enough feedback
-    feedback_count = sum(1 for m in all_data["metadatas"]
-                        if m.get("type") == "feedback")
-    if user_agents == 0 and feedback_count >= 5:
-        needs.append("global")
+    # Always consider global agents (dedup handles duplicates)
+    needs.append("global")
 
     print(",".join(needs) if needs else "")
 
@@ -168,7 +136,7 @@ fi
 # ================================================================
 # Phase 4: SINGLE call to haiku — propose agents
 # ================================================================
-CREATE_RESULT=$(cat <<PROMPT_EOF | claude -p --model haiku --mcp-config '{}' --strict-mcp-config 2>/dev/null
+CREATE_RESULT=$(cat <<PROMPT_EOF | claude -p --bare --model haiku 2>/dev/null
 You are an agent architect for Claude Code. Analyze these accumulated vector memories and propose EXACTLY the right number of reusable subagents.
 
 === VMEM MEMORIES ===

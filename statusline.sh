@@ -9,20 +9,11 @@ SESSIONS_LOG="$HOME/.claude/.cortex_sessions.jsonl"
 # ── Line 1: Memory stats ──
 MEMORY_LINE=$(/usr/bin/python3 -W ignore - "$DB_PATH" 2>/dev/null <<'PYEOF'
 import os, sys
-os.environ["ORT_LOG_LEVEL"] = "ERROR"
-_fd = os.dup(2)
-_dn = os.open(os.devnull, os.O_WRONLY)
-os.dup2(_dn, 2); os.close(_dn)
-try:
-    import onnxruntime
-    onnxruntime.set_default_logger_severity(3)
-    import chromadb
-finally:
-    os.dup2(_fd, 2); os.close(_fd)
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/cortex/lib"))
+from chroma_client import get_client, get_collection
 
 try:
-    client = chromadb.PersistentClient(path=sys.argv[1])
-    col = client.get_or_create_collection("claude_memories")
+    col = get_collection()
     c = col.count()
     if c == 0:
         print("empty")
@@ -43,12 +34,13 @@ try:
         type_names = {
             "project": "project",
             "feedback": "feedback",
+            "preferences": "prefs",
             "reference": "reference",
             "user": "user",
             "general": "general"
         }
         parts = []
-        for t in ["project", "feedback", "reference", "user", "general"]:
+        for t in ["project", "feedback", "preferences", "reference", "user", "general"]:
             if t in types:
                 parts.append(f"{types[t]} {type_names.get(t, t)}")
 
@@ -63,12 +55,7 @@ PYEOF
 
 # ── Line 2: Agent fleet ──
 FLEET_LINE=$(/usr/bin/python3 -W ignore -c "
-import os, glob, json, warnings
-warnings.filterwarnings('ignore')
-os.environ['ONNXRUNTIME_DISABLE_TELEMETRY'] = '1'
-os.environ['ORT_LOG_LEVEL'] = 'ERROR'
-os.environ['OMP_NUM_THREADS'] = '2'
-os.environ['ONNXRUNTIME_SESSION_THREAD_POOL_SIZE'] = '2'
+import os, sys, glob, json
 
 user_dir = os.path.expanduser('~/.claude/agents')
 proj_dir = '.claude/agents'
@@ -105,15 +92,9 @@ if os.path.exists(ledger):
 # Eval scores
 avg_score = ''
 try:
-    _fd = os.dup(2)
-    _dn = os.open(os.devnull, os.O_WRONLY)
-    os.dup2(_dn, 2); os.close(_dn)
-    try:
-        import chromadb
-    finally:
-        os.dup2(_fd, 2); os.close(_fd)
-    client = chromadb.PersistentClient(path=os.path.expanduser('~/.claude/cortex-db'))
-    col = client.get_or_create_collection('claude_memories')
+    sys.path.insert(0, os.path.expanduser('~/.claude/skills/cortex/lib'))
+    from chroma_client import get_client, get_collection
+    col = get_collection()
     data = col.get(where={'type': 'agent_eval'})
     latest = {}
     for i in range(len(data['ids'])):
@@ -157,6 +138,18 @@ if global_count:
 print(f'{total} skills ({\" + \".join(parts)})')
 " 2>/dev/null)
 
+# ── Line 3b: Cached docs ──
+DOCS_LINE=$(/usr/bin/python3 -W ignore -c "
+import os
+doc_root = os.path.expanduser('~/.claude/docs')
+if not os.path.isdir(doc_root): exit(0)
+count = len([d for d in os.listdir(doc_root)
+             if os.path.isdir(os.path.join(doc_root, d))
+             and os.path.isfile(os.path.join(doc_root, d, '.manifest.json'))])
+if count == 0: exit(0)
+print(f'{count} doc caches')
+" 2>/dev/null)
+
 # ── Line 4: Today's operations ──
 OPS_LINE=""
 if [ -f "$OPS_LOG" ]; then
@@ -178,10 +171,9 @@ if [ -f "$ACTIVITY_FILE" ]; then
     fi
 fi
 
+
 # ── Assemble output ──
-PURPLE='\033[38;5;141m'
-RESET='\033[0m'
-OUTPUT="${PURPLE}❖${RESET} ${MEMORY_LINE}"
+OUTPUT="\U0001f9e0 ${MEMORY_LINE}"
 
 if [ -n "$FLEET_LINE" ]; then
     OUTPUT="${OUTPUT}\n\U0001f916 ${FLEET_LINE}"
@@ -189,6 +181,10 @@ fi
 
 if [ -n "$SKILLS_LINE" ]; then
     OUTPUT="${OUTPUT}\n\U0001f4da ${SKILLS_LINE}"
+fi
+
+if [ -n "$DOCS_LINE" ]; then
+    OUTPUT="${OUTPUT}\n\U0001f4d6 ${DOCS_LINE}"
 fi
 
 # Combine ops + activity on one line if both exist

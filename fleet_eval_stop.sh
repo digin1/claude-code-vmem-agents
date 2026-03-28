@@ -6,18 +6,14 @@
 INPUT=$(cat 2>/dev/null)
 
 VMEM_HOOK_INPUT="$INPUT" /usr/bin/python3 -W ignore - 2>/dev/null <<'PYEOF'
-import sys, json, os, time, warnings
+import sys, json, os, time
 from datetime import datetime, timedelta
 from collections import Counter
 
-warnings.filterwarnings("ignore")
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
-os.environ["ORT_LOG_LEVEL"] = "ERROR"
-os.environ["OMP_NUM_THREADS"] = "2"
-os.environ["ONNXRUNTIME_SESSION_THREAD_POOL_SIZE"] = "2"
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/cortex/lib"))
+from chroma_client import get_client, get_collection
 
 LEDGER = os.path.expanduser("~/.claude/agent-usage.jsonl")
-DB_PATH = os.path.expanduser("~/.claude/cortex-db")
 TODAY = datetime.now().strftime("%Y-%m-%d")
 SEVEN_DAYS_AGO = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%dT00:00:00")
 
@@ -63,18 +59,7 @@ if today_count < 5:
 eval_scores = {}  # agent_name -> {"score": int, "notes": str, "timestamp": str}
 
 try:
-    _fd = os.dup(2)
-    _dn = os.open(os.devnull, os.O_WRONLY)
-    os.dup2(_dn, 2)
-    os.close(_dn)
-    try:
-        import chromadb
-    finally:
-        os.dup2(_fd, 2)
-        os.close(_fd)
-
-    client = chromadb.PersistentClient(path=DB_PATH)
-    col = client.get_or_create_collection("claude_memories")
+    col = get_collection()
 
     if col.count() > 0:
         # Fetch all agent_eval entries

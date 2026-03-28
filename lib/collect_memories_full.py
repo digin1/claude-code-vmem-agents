@@ -10,28 +10,15 @@ import sys
 import warnings
 
 warnings.filterwarnings("ignore")
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
-os.environ["ORT_LOG_LEVEL"] = "ERROR"
 
-# Suppress onnxruntime noise
-_fd = os.dup(2)
-_dn = os.open(os.devnull, os.O_WRONLY)
-os.dup2(_dn, 2)
-os.close(_dn)
-try:
-    import chromadb
-finally:
-    os.dup2(_fd, 2)
-    os.close(_fd)
-
-DB_PATH = os.path.expanduser("~/.claude/cortex-db")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from chroma_client import get_client, get_collection as _get_collection
 
 
 def collect(project_filter=None):
     """Collect memories, optionally filtered by project names."""
     try:
-        client = chromadb.PersistentClient(path=DB_PATH)
-        col = client.get_or_create_collection("claude_memories")
+        col = _get_collection()
         data = col.get(include=["documents", "metadatas"])
     except Exception:
         return ""

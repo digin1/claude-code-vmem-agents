@@ -6,12 +6,7 @@ INPUT=$(cat 2>/dev/null)
 
 # Pass input via env var since heredoc takes stdin
 VMEM_HOOK_INPUT="$INPUT" /usr/bin/python3 -W ignore - 2>/dev/null <<'PYEOF'
-import sys, json, time, os, warnings
-warnings.filterwarnings('ignore')
-os.environ['ONNXRUNTIME_DISABLE_TELEMETRY'] = '1'
-os.environ['ORT_LOG_LEVEL'] = 'ERROR'
-os.environ['OMP_NUM_THREADS'] = '2'
-os.environ['ONNXRUNTIME_SESSION_THREAD_POOL_SIZE'] = '2'
+import sys, json, time, os
 
 raw = os.environ.get('VMEM_HOOK_INPUT', '').strip()
 if not raw:
@@ -53,19 +48,10 @@ except Exception:
 # Search cortex for context relevant to what the agent just did
 if description:
     try:
-        _fd = os.dup(2)
-        _dn = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(_dn, 2)
-        os.close(_dn)
-        try:
-            import chromadb
-        finally:
-            os.dup2(_fd, 2)
-            os.close(_fd)
+        sys.path.insert(0, os.path.expanduser("~/.claude/skills/cortex/lib"))
+        from chroma_client import get_client, get_collection
 
-        DB_PATH = os.path.expanduser('~/.claude/cortex-db')
-        client = chromadb.PersistentClient(path=DB_PATH)
-        col = client.get_or_create_collection('claude_memories')
+        col = get_collection()
         if col.count() > 0:
             results = col.query(query_texts=[description[:300]], n_results=min(3, col.count()))
             relevant = []

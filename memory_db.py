@@ -13,32 +13,14 @@ import time
 import warnings
 from pathlib import Path
 
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
-os.environ["ORT_LOG_LEVEL"] = "ERROR"
 warnings.filterwarnings("ignore")
 
-# Suppress onnxruntime C-level GPU warning by redirecting native fd 2
-_stderr_fd = os.dup(2)
-_devnull = os.open(os.devnull, os.O_WRONLY)
-os.dup2(_devnull, 2)
-os.close(_devnull)
-try:
-    import onnxruntime
-    onnxruntime.set_default_logger_severity(3)
-    import chromadb
-finally:
-    os.dup2(_stderr_fd, 2)
-    os.close(_stderr_fd)
-
-DB_PATH = str(Path.home() / ".claude" / "cortex-db")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from lib.chroma_client import get_collection as _get_collection
 
 
 def get_collection():
-    client = chromadb.PersistentClient(path=DB_PATH)
-    return client.get_or_create_collection(
-        name="claude_memories",
-        metadata={"hnsw:space": "cosine"},
-    )
+    return _get_collection()
 
 
 def store(args):

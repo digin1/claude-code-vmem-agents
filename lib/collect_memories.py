@@ -4,18 +4,16 @@ import os
 import warnings
 
 warnings.filterwarnings("ignore")
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
 
-DB_PATH = os.path.expanduser("~/.claude/cortex-db")
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from chroma_client import get_collection as _get_collection
 
 
 def collect_memories():
     """Read memories from ChromaDB and return formatted text."""
     try:
-        import chromadb
-
-        client = chromadb.PersistentClient(path=DB_PATH)
-        col = client.get_or_create_collection("claude_memories")
+        col = _get_collection()
         data = col.get()
         lines = []
         metadatas = data["metadatas"] or []

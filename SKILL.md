@@ -1,8 +1,8 @@
 ---
 name: cortex
 description: Cortex — self-evolving memory and agent fleet — store, search, and manage memories with semantic search across all projects
-argument-hint: <store|search|list|delete|update|stats|agents|discover|learn> [args...]
-allowed-tools: "mcp__cortex__memory_store, mcp__cortex__memory_search, mcp__cortex__memory_list, mcp__cortex__memory_delete, mcp__cortex__memory_update, mcp__cortex__memory_stats, Bash, Read, Glob, Write, WebSearch, WebFetch, Agent"
+argument-hint: <store|search|list|delete|update|stats|agents|discover|learn|addskill|config|merge|docs> [args...]
+allowed-tools: "mcp__cortex__memory_store, mcp__cortex__memory_search, mcp__cortex__memory_list, mcp__cortex__memory_delete, mcp__cortex__memory_update, mcp__cortex__memory_merge, mcp__cortex__memory_stats, Bash, Read, Glob, Write, WebSearch, WebFetch, Agent"
 ---
 
 # Cortex Memory System
@@ -13,11 +13,12 @@ You have access to a persistent vector memory database (ChromaDB) via MCP tools.
 
 ## MCP Tools Available
 
-- `memory_store` — Store a memory with embedding
-- `memory_search` — Semantic similarity search
+- `memory_store` — Store a memory with embedding (dedup check built-in)
+- `memory_search` — Semantic similarity search (shows % similarity)
 - `memory_list` — List all memories (with optional filters)
-- `memory_delete` — Delete by ID
-- `memory_update` — Update content or metadata
+- `memory_delete` — Delete by ID (archived to audit log)
+- `memory_update` — Update content or metadata (supports append/prepend mode, +tag syntax)
+- `memory_merge` — Merge 2+ related memories into one consolidated memory
 - `memory_stats` — Show DB statistics
 
 ## Interpreting the user's request
@@ -33,6 +34,9 @@ Parse `$ARGUMENTS` to determine the command:
 - `/cortex agents` → run agent fleet dashboard (see below)
 - `/cortex discover` → auto-discover project skills with web research (see below)
 - `/cortex learn` → session review (see below)
+- `/cortex addskill <description>` → create a new skill from context (see below)
+- `/cortex merge <id1,id2,...>` → merge related memories into one (see memory_merge tool)
+- `/cortex config [key] [value]` → view or set cortex config (see below)
 - `/cortex` with no args → call `memory_stats`
 
 When storing, always:
@@ -120,6 +124,133 @@ Follow these conventions:
 6. Add the route to the appropriate router
 7. Write tests using TestClient covering success + error paths
 8. Follow the existing project structure and naming conventions
+```
+
+## Skill Creation (`/cortex addskill`)
+
+When the user runs `/cortex addskill <description>`, create a new slash-command skill file.
+
+### Steps:
+
+1. **Parse the description** — understand what the skill should do (scaffold, debug, automate, query, etc.)
+
+2. **Determine scope (global vs local)** — apply these rules:
+
+   **LOCAL** (`.claude/commands/`) when the skill references ANY of:
+   - Project-specific file paths (e.g., `backend/api/`, `frontend/src/lib/api.ts`)
+   - Project-specific container names, table names, Redis keys
+   - Project-specific conventions, architecture, or domain logic
+   - A framework used primarily in this project's specific way
+
+   **GLOBAL** (`~/.claude/commands/`) when the skill is:
+   - A generic wrapper around a CLI tool (docker, git, pytest, curl)
+   - Useful across multiple projects with no project-specific content
+   - A utility pattern (log viewing, DB querying, test running) with no hardcoded paths
+
+   **When in doubt, prefer local.** A local skill can always be copied to global later, but a global skill with project-specific content breaks in other projects.
+
+3. **Read existing skills** — check both `.claude/commands/` and `~/.claude/commands/` for similar skills to avoid duplication. If a similar skill exists, ask the user if they want to update it instead.
+
+4. **Read project code** — if the skill is local, read relevant source files to understand conventions, patterns, and file structure. Encode these specifics into the skill.
+
+5. **Generate the skill file** with:
+   - `description:` in YAML frontmatter (clear, actionable, shown in command palette)
+   - `$ARGUMENTS` placeholder for user input
+   - Specific, actionable instructions (not generic advice)
+   - Project conventions if local
+   - Example commands or code patterns
+
+6. **Write the file** — kebab-case filename matching the command name
+
+7. **Store in cortex** — record the skill creation:
+   - `memory_id`: `skill_<name>_<project_or_global>`
+   - `memory_type`: `project` (local) or `reference` (global)
+   - Content: skill name, description, scope, what it does
+
+8. **Report** — show the user the skill name and how to use it
+
+### Example:
+```
+/cortex addskill debug hyperliquid order execution failures
+```
+→ Creates `.claude/commands/debug-hl-orders.md` (local, references project-specific tables and containers)
+
+```
+/cortex addskill generic git PR review checklist
+```
+→ Creates `~/.claude/commands/pr-review.md` (global, no project-specific content)
+
+## Global vs Local Placement Rules
+
+These rules apply to ALL skill creation — `/cortex discover`, `/cortex addskill`, and auto-generated skills from session learning.
+
+| Signal | Scope | Reasoning |
+|--------|-------|-----------|
+| References specific file paths | Local | Paths differ across projects |
+| References container/service names | Local | Docker setup is project-specific |
+| References database tables/columns | Local | Schema is project-specific |
+| References project architecture | Local | Each project is different |
+| Generic CLI tool wrapper | Global | Works everywhere |
+| Language/framework pattern (no project paths) | Global | Reusable knowledge |
+| Cross-project utility (log viewer, test runner) | Global | Universal tool |
+
+## Auto Skill Improvement (Session End)
+
+During the **Stop hook** (when `learn.sh` blocks to extract learnings), Claude should ALSO check if any skills should be created or improved based on the session. This happens automatically — no user action needed.
+
+### What to look for:
+1. **Repeated patterns** — Did you perform the same multi-step workflow multiple times? → Create a skill for it
+2. **Debugging sessions** — Did you debug something complex with specific diagnostic steps? → Create or improve a debug skill
+3. **New project knowledge** — Did you discover project-specific commands, table structures, or conventions not yet in any skill? → Update the relevant skill
+4. **Skill gaps** — Did you do something that an existing skill should cover but doesn't? → Improve that skill
+
+### How to auto-improve:
+1. Check existing skills in `.claude/commands/` and `~/.claude/commands/`
+2. If a skill exists but is missing info learned this session → use `Edit` to update it
+3. If no skill covers a repeated pattern → create a new one via `Write`
+4. Apply the global vs local placement rules above
+5. Store a cortex memory noting the skill change: `memory_id: skill_update_<name>`, `memory_type: project`
+
+### Constraints:
+- Only create/update skills for patterns that occurred 2+ times OR were explicitly complex
+- Don't create trivial skills (one-liner commands)
+- Don't duplicate existing skills — improve them instead
+- Keep skill files under 200 lines
+- Max 2 new skills per session to avoid noise
+
+## Configuration (`/cortex config`)
+
+When the user runs `/cortex config`, read and manage `~/.claude/.cortex_config` (JSON file).
+
+**Available settings:**
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `notify` | bool | `true` | Desktop notifications via notify-send on learning completion |
+| `auto_learn` | bool | `true` | Auto-extract learnings on session stop |
+| `auto_skills` | bool | `true` | Auto-suggest skills on session stop |
+| `auto_agents` | bool | `true` | Auto-suggest agents on session stop |
+| `auto_docs` | bool | `true` | Auto-download framework docs on session start |
+
+**Usage:**
+- `/cortex config` — show current config
+- `/cortex config notify false` — disable notifications
+- `/cortex config auto_skills false` — disable auto skill suggestions
+- `/cortex config auto_docs false` — disable auto documentation fetching
+
+**Implementation:** Read/write `~/.claude/.cortex_config` as JSON:
+```bash
+# Read
+cat ~/.claude/.cortex_config 2>/dev/null || echo '{}'
+# Write (use python for safe JSON merge)
+python3 -c "
+import json, sys
+f='$HOME/.claude/.cortex_config'
+try: cfg=json.load(open(f))
+except: cfg={}
+cfg['KEY']=VALUE
+json.dump(cfg, open(f,'w'), indent=2)
+"
 ```
 
 ## Session Review (`/cortex learn`)

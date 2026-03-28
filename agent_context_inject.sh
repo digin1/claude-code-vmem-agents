@@ -6,24 +6,10 @@
 INPUT=$(cat)
 
 /usr/bin/python3 -W ignore - "$INPUT" 2>/dev/null <<'PYEOF'
-import sys, json, os, time, warnings
-warnings.filterwarnings("ignore")
-os.environ["ONNXRUNTIME_DISABLE_TELEMETRY"] = "1"
-os.environ["ORT_LOG_LEVEL"] = "ERROR"
-os.environ["OMP_NUM_THREADS"] = "2"
-os.environ["ONNXRUNTIME_SESSION_THREAD_POOL_SIZE"] = "2"
+import sys, json, os, time
 
-_fd = os.dup(2)
-_dn = os.open(os.devnull, os.O_WRONLY)
-os.dup2(_dn, 2); os.close(_dn)
-try:
-    import onnxruntime
-    onnxruntime.set_default_logger_severity(3)
-    import chromadb
-finally:
-    os.dup2(_fd, 2); os.close(_fd)
-
-DB_PATH = os.path.expanduser("~/.claude/cortex-db")
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/cortex/lib"))
+from chroma_client import get_client, get_collection
 
 raw = sys.argv[1] if len(sys.argv) > 1 else ""
 try:
@@ -40,8 +26,7 @@ if not agent_type or agent_type in ("general-purpose", "Explore", "Plan"):
     sys.exit(0)
 
 try:
-    client = chromadb.PersistentClient(path=DB_PATH)
-    col = client.get_or_create_collection("claude_memories")
+    col = get_collection()
     if col.count() == 0:
         sys.exit(0)
 
