@@ -154,7 +154,6 @@ defaults = {
     'auto_learn': True,
     'auto_skills': True,
     'auto_agents': True,
-    'notify': True,
 }
 
 # ChromaDB status
@@ -168,9 +167,9 @@ except:
 
 # Build toggle display
 toggles = []
-for key in ['auto_learn', 'auto_skills', 'auto_agents', 'notify']:
+for key in ['auto_learn', 'auto_skills', 'auto_agents']:
     val = cfg.get(key, defaults[key])
-    short = key.replace('auto_', '').replace('notify', 'notify')
+    short = key.replace('auto_', '')
     symbol = '\u2713' if val else '\u2717'
     toggles.append(f'{short}:{symbol}')
 

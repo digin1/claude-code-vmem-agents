@@ -226,14 +226,12 @@ When the user runs `/cortex config`, read and manage `~/.claude/.cortex_config` 
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `notify` | bool | `true` | Desktop notifications via notify-send on learning completion |
 | `auto_learn` | bool | `true` | Auto-extract learnings on session stop |
 | `auto_skills` | bool | `true` | Auto-suggest skills on session stop |
 | `auto_agents` | bool | `true` | Auto-suggest agents on session stop |
 
 **Usage:**
 - `/cortex config` — show current config
-- `/cortex config notify false` — disable notifications
 - `/cortex config auto_skills false` — disable auto skill suggestions
 
 **Implementation:** Read/write `~/.claude/.cortex_config` as JSON:

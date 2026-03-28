@@ -47,7 +47,7 @@ cortex gives Claude Code **persistent memory across sessions** and **self-managi
 🧠 44 memories (7 project, 3 feedback, 6 prefs, 26 reference, 2 user) across 2 projects
 🤖 16 agents (11 project + 5 global) | 17 spawns today
 📚 13 skills (10 project + 3 global)
-⚙ chromadb:✓ | learn:✓ skills:✓ agents:✓ notify:✓
+⚙ chromadb:✓ | learn:✓ skills:✓ agents:✓
 ```
 
 ---
@@ -578,7 +578,7 @@ The MCP server exposes resources that can be referenced with `@` in the Claude C
 | `/cortex agents` | Fleet health dashboard |
 | `/cortex discover` | Auto-detect tech stack + generate skill commands with web research |
 | `/cortex learn` | Review session and extract learnings to memory |
-| `/cortex config [key] [value]` | Toggle feature flags (auto_learn, auto_skills, auto_agents, notify) |
+| `/cortex config [key] [value]` | Toggle feature flags (auto_learn, auto_skills, auto_agents) |
 
 ---
 

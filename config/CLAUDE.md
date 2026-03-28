@@ -35,7 +35,7 @@ A persistent vector memory system (cortex) is available via MCP tools. It stores
 - `/cortex discover` — Deep skill discovery with web research
 - `/cortex addskill <description>` — Create a new slash-command skill
 - `/cortex agents` — Agent fleet dashboard
-- `/cortex config [key] [value]` — Toggle notify, auto_learn, auto_skills, auto_agents
+- `/cortex config [key] [value]` — Toggle auto_learn, auto_skills, auto_agents
 - `/cortex learn` — Manual session review
 
 ## Specialized Agents
