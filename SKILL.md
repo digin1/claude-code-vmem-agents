@@ -32,6 +32,7 @@ Parse `$ARGUMENTS` to determine the command:
 - `/cortex update <id> <content>` → call `memory_update`
 - `/cortex stats` → call `memory_stats`
 - `/cortex agents` → run agent fleet dashboard (see below)
+- `/cortex agents discover` → auto-discover and create agents for the current project (see below)
 - `/cortex discover` → auto-discover project skills with web research (see below)
 - `/cortex learn` → session review (see below)
 - `/cortex addskill <description>` → create a new skill from context (see below)
@@ -61,6 +62,86 @@ Then format the JSON output into a readable table showing:
 - Health indicator based on score + usage
 
 If the user says `/cortex agents <name>`, show detailed info for that specific agent (read its .md file, full eval history, usage timeline).
+
+## Agent Discovery (`/cortex agents discover`)
+
+When the user runs `/cortex agents discover`, analyze the current project and automatically create specialized agents.
+
+### Steps:
+
+1. **Detect tech stack** — run the detector:
+```bash
+/usr/bin/python3 ~/.claude/skills/cortex/lib/skill_detect.py "$(pwd)" 2>/dev/null
+```
+
+2. **Read project structure** — understand the codebase:
+   - Check for backend frameworks (Flask, FastAPI, Django, Express)
+   - Check for frontend frameworks (React, Next.js, Vue)
+   - Check for infrastructure (Docker, Docker Compose, CI/CD)
+   - Check for test frameworks (pytest, jest, playwright)
+   - Check for databases (PostgreSQL, MySQL, SQLite, Redis)
+   - Read key config files (package.json, requirements.txt, docker-compose.yml)
+
+3. **Check existing agents** — run the dashboard to see what already exists:
+```bash
+python3 -W ignore ~/.claude/skills/cortex/agent_dashboard.py 2>/dev/null
+```
+Do NOT create duplicates of existing agents.
+
+4. **Determine scope** for each agent:
+
+   **LOCAL** (`.claude/agents/`) when the agent:
+   - References project-specific file paths, services, or architecture
+   - Is only useful in this project's context
+   - Uses project-specific conventions or domain knowledge
+
+   **GLOBAL** (`~/.claude/agents/`) when the agent:
+   - Works across multiple projects
+   - Is a general-purpose specialist (testing, docs, security)
+   - Has no project-specific content
+
+5. **Generate agent files** — create `.md` files with this frontmatter:
+```yaml
+---
+name: <Agent Name>
+description: <When to use — one line, shown in agent selection>
+model: sonnet
+---
+
+<System prompt with detailed instructions>
+```
+
+6. **Agent ideas to consider** (pick only what's relevant to this project):
+
+   | Agent | Scope | When to create |
+   |-------|-------|----------------|
+   | **Test Writer** | Global | Any project with tests |
+   | **Code Reviewer** | Global | Any codebase |
+   | **DB Migration** | Local | Projects with databases + migration tools |
+   | **API Designer** | Local | Projects with REST/GraphQL APIs |
+   | **Docker Debugger** | Local | Projects with Docker/Compose/Swarm |
+   | **CI/CD Fixer** | Local | Projects with GitHub Actions/GitLab CI |
+   | **Performance Auditor** | Local | Frontend projects |
+   | **Security Scanner** | Global | Any codebase |
+   | **Content Writer** | Local | CMS/content-driven sites |
+   | **Deployment Agent** | Local | Projects with specific deploy workflows |
+
+7. **Write files** — use `Write` to create each agent `.md` file
+
+8. **Store in cortex** — record what was created:
+   - `memory_id`: `agent_discovery_<project_name>`
+   - `memory_type`: `project`
+   - Content: list of agents created with scope and purpose
+
+9. **Report** — show the user what agents were created, their scope, and when to use them
+
+### Quality rules:
+- Max 3-4 agents per project — too many creates noise
+- Each agent must have a clear, distinct purpose
+- Don't create agents for things slash commands handle better (simple workflows)
+- Agents are for complex, multi-step tasks that benefit from specialized context
+- Use `model: sonnet` for most agents (fast, capable), `model: opus` only for deep analysis tasks
+- The system prompt should be specific and opinionated, not generic
 
 ## Skill Discovery (`/cortex discover`)
 
