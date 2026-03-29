@@ -46,8 +46,9 @@ if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
         # Parse last 20 entries from transcript
         CONTEXT=$("$LIB/parse_transcript.py" "$TRANSCRIPT" 2>/dev/null | tail -c 2000)
 
-        if [ -n "$CONTEXT" ] && [ ${#CONTEXT} -gt 100 ]; then
+        if [ -n "$CONTEXT" ] && [ ${#CONTEXT} -gt 100 ] && [ -n "$ANTHROPIC_API_KEY" ]; then
             # Store a one-line session summary
+            # NOTE: Requires ANTHROPIC_API_KEY — claude -p with OAuth invalidates the user's session token
             SUMMARY=$(echo "$CONTEXT" | claude -p --bare --model haiku "Summarize this session in ONE sentence (max 100 words). Focus on what was accomplished, not the process. If nothing notable, output: SKIP" 2>/dev/null)
 
             if [ -n "$SUMMARY" ] && [ "$SUMMARY" != "SKIP" ]; then

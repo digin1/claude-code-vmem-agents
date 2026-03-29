@@ -1,6 +1,9 @@
 #!/bin/bash
 # Status line for vector memory — multi-line, clear labels, visual indicators
 
+# ── Line 0: PS1-style shell prompt header ──
+PS1_LINE=$(printf "\033[01;32m%s@%s\033[00m:\033[01;34m%s\033[00m" "$(whoami)" "$(hostname -s)" "$(pwd)")
+
 DB_PATH="$HOME/.claude/cortex-db"
 ACTIVITY_FILE="$HOME/.claude/.cortex_activity"
 OPS_LOG="$HOME/.claude/.cortex_ops_log.jsonl"
@@ -211,7 +214,7 @@ fi
 
 
 # ── Assemble output ──
-OUTPUT="\U0001f9e0 ${MEMORY_LINE}"
+OUTPUT="${PS1_LINE}\n\U0001f9e0 ${MEMORY_LINE}"
 
 if [ -n "$FLEET_LINE" ]; then
     OUTPUT="${OUTPUT}\n\U0001f916 ${FLEET_LINE}"

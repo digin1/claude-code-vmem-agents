@@ -255,6 +255,12 @@ If no new skills needed: []
 STATIC_EOF
 } > "$PROMPT_FILE"
 
+# Skip claude -p if no API key (OAuth auth gets invalidated by subprocess)
+if [ -z "$ANTHROPIC_API_KEY" ]; then
+    echo "[skill-discover] Skipped — no API key (OAuth mode)"
+    touch "$COOLDOWN_FILE"
+    exit 0
+fi
 SKILL_RESULT=$(claude -p --bare --model sonnet < "$PROMPT_FILE" 2>/dev/null)
 
 if [ -z "$SKILL_RESULT" ]; then

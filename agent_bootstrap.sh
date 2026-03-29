@@ -293,6 +293,14 @@ cat <<'PROMPT_EOF' >> "$PROMPT_FILE"
 
 [{"scope": "project", "filename": "kebab-case.md", "content": "---\nname: agent-name\ndescription: When to use this\ntools:\n  - Read\n  - Edit\n  - Write\n  - Bash\n  - Grep\n  - Glob\nmodel: opus\n---\n\nSystem prompt here with real knowledge..."}]
 PROMPT_EOF
+# Skip claude -p if no API key (OAuth auth gets invalidated by subprocess)
+if [ -z "$ANTHROPIC_API_KEY" ]; then
+    echo "[cortex bootstrap] Skipped — no API key (OAuth mode)"
+    for proj in $(echo "$NEEDS" | tr ',' ' '); do
+        touch "$COOLDOWN_DIR/$(echo "$proj" | tr -dc 'a-zA-Z0-9_-' | head -c 64)_${TODAY}"
+    done
+    exit 0
+fi
 CREATE_RESULT=$(claude -p --bare --model haiku < "$PROMPT_FILE" 2>/dev/null)
 
 if [ -z "$CREATE_RESULT" ]; then

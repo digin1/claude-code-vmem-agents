@@ -65,6 +65,8 @@ STATIC_EOF
 sed -i "s/PROJECT_PLACEHOLDER/${PROJECT_NAME:-unknown}/g" "$PROMPT_FILE"
 # Run Phase 1 in background while Phase 2a collects data
 (
+    # Skip claude -p if no API key (OAuth auth gets invalidated by subprocess)
+    if [ -z "$ANTHROPIC_API_KEY" ]; then exit 0; fi
     SUMMARY=$(claude -p --bare < "$PROMPT_FILE" 2>/dev/null)
     if [ -n "$SUMMARY" ]; then
         "$LIB/store_memories.py" "$SUMMARY"
@@ -120,7 +122,12 @@ STATIC_EOF
   printf '%s\n' "---SESSION CONTEXT---"
   printf '%s\n' "$CONTEXT"
 } > "$AGENT_PROMPT"
-CREATE_RESULT=$(claude -p --bare < "$AGENT_PROMPT" 2>/dev/null)
+# Skip claude -p if no API key (OAuth auth gets invalidated by subprocess)
+if [ -n "$ANTHROPIC_API_KEY" ]; then
+    CREATE_RESULT=$(claude -p --bare < "$AGENT_PROMPT" 2>/dev/null)
+else
+    CREATE_RESULT=""
+fi
 rm -f "$AGENT_PROMPT"
 
 if [ -n "$CREATE_RESULT" ]; then
@@ -170,7 +177,12 @@ STATIC_EOF
   printf '%s\n' "---SESSION CONTEXT---"
   printf '%s\n' "$CONTEXT"
 } > "$EVAL_PROMPT"
-EVAL_RESULT=$(claude -p --bare < "$EVAL_PROMPT" 2>/dev/null)
+# Skip claude -p if no API key (OAuth auth gets invalidated by subprocess)
+if [ -n "$ANTHROPIC_API_KEY" ]; then
+    EVAL_RESULT=$(claude -p --bare < "$EVAL_PROMPT" 2>/dev/null)
+else
+    EVAL_RESULT=""
+fi
 rm -f "$EVAL_PROMPT"
 
 if [ -n "$EVAL_RESULT" ]; then

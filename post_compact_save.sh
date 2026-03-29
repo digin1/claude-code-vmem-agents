@@ -30,6 +30,8 @@ fi
 echo "[cortex post-compact] Processing compact summary (${#SUMMARY} chars)..."
 
 # Extract memories from the compact summary using haiku
+# Skip claude -p if no API key (OAuth auth gets invalidated by subprocess)
+if [ -z "$ANTHROPIC_API_KEY" ]; then exit 0; fi
 EXTRACTED=$(echo "$SUMMARY" | claude -p --bare --model haiku "You are a memory extraction system. This is a COMPRESSED conversation summary. Extract ONLY items worth remembering for future sessions.
 
 Output a valid JSON array. Each item: {\"type\": \"feedback|project|reference\", \"id\": \"short_snake_id\", \"content\": \"one sentence\", \"tags\": \"comma,separated\"}
