@@ -323,8 +323,8 @@ if first_msg:
 # SUBSEQUENT MESSAGES: Semantic search with project boost
 # ================================================================
 else:
-    if len(user_prompt) < 3:
-        sys.exit(0)
+    if len(user_prompt.strip()) < 20 and not is_remember_query:
+        sys.exit(0)  # Skip trivial messages like "ok", "yes", "thanks", "do it"
 
     # Build richer query with assistant context
     assistant_context = ""
@@ -391,7 +391,7 @@ else:
     #     pass  # Timeout or missing claude — fall back to regular search
 
     # ── Multi-query ChromaDB search ────────────────────────────────
-    n_results = min(12 if is_remember_query else 8, col.count())
+    n_results = min(10 if is_remember_query else 5, col.count())
 
     # Primary search: user prompt + assistant context
     results = col.query(
