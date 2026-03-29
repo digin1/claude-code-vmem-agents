@@ -1,7 +1,8 @@
 #!/bin/bash
 # PostCompact hook: extract knowledge from the compact summary
-# Complements PreCompact (compact_save.sh) which processes the full transcript
-# This processes the COMPRESSED summary — what the compactor deemed important
+# DISABLED: Redundant with compact_save.sh (PreCompact) Phase 1 which already
+# extracts memories. Also requires claude -p which invalidates OAuth sessions.
+exit 0
 
 INPUT=$(cat 2>/dev/null)
 LIB="$(dirname "$0")/lib"

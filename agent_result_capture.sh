@@ -36,20 +36,7 @@ try:
 except:
     pass
 
-# Inject reminder to store findings
-context = (
-    f"[cortex] Agent '{agent_type}' completed. "
-    f"If it produced useful findings, store them as a cortex memory "
-    f"(type: project or reference) so future sessions can recall them."
-)
-
-output = json.dumps({
-    "suppressOutput": True,
-    "hookSpecificOutput": {
-        "hookEventName": "SubagentStop",
-        "additionalContext": context
-    }
-})
-print(output)
+# Usage logging only — no context injection (generic reminders waste tokens)
+sys.exit(0)
 
 PYEOF

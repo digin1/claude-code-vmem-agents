@@ -1,7 +1,9 @@
 #!/bin/bash
 # PostToolUse hook: periodic in-session learning via decision:block
-# Runs with a cooldown (max once per 5 minutes). When triggered, blocks
-# tool flow and lets Claude (Opus) extract learnings using full context.
+# DISABLED: Redundant with learn.sh (Stop hook) which does full learning
+# extraction at session end with complete context. This mid-session version
+# costs ~5000-8000 tokens/session for duplicate work.
+exit 0
 
 INPUT=$(cat 2>/dev/null)
 CORTEX_CONFIG="$HOME/.claude/.cortex_config"
