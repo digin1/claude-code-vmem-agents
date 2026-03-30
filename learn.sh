@@ -26,7 +26,7 @@ if ! /usr/bin/python3 -W ignore -c "import mcp, chromadb" 2>/dev/null; then
 fi
 
 # Check if auto_learn is disabled
-if grep -q '"auto_learn":false' "$CORTEX_CONFIG" 2>/dev/null; then
+if grep -q '"auto_learn".*false' "$CORTEX_CONFIG" 2>/dev/null; then
     exit 0
 fi
 
